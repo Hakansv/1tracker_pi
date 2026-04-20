@@ -39,10 +39,6 @@ long long durationMillis(std::chrono::steady_clock::duration duration) {
   return std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
 }
 
-long long durationMillis(std::chrono::system_clock::duration duration) {
-  return std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
-}
-
 double toRadians(double degrees) {
   constexpr double kPi = 3.14159265358979323846;
   return degrees * kPi / 180.0;
