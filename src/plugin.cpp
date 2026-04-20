@@ -309,7 +309,7 @@ int OneTrackerPi::GetPlugInVersionMinor() { return ONETRACKER_PLUGIN_VERSION_MIN
 
 int OneTrackerPi::GetPlugInVersionPatch() { return ONETRACKER_PLUGIN_VERSION_PATCH; }
 
-wxString OneTrackerPi::GetCommonName() { return "1tracker"; }
+wxString OneTrackerPi::GetCommonName() { return tracker_pi::kPluginCommonName; }
 
 wxString OneTrackerPi::GetShortDescription() {
   return tracker_pi::kPluginSummary;
