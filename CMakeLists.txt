@@ -40,6 +40,11 @@ set(PACKAGE_NAME ${CMAKE_PROJECT_NAME})
 string(REGEX REPLACE "([0-9])\\.([0-9]).*" "ov\\1\\2"
        OCPN_MIN_VERSION ${API_OCPN_MIN_VERSION})
 
+# macOS: set up universal wxWidgets BEFORE late_init so it finds the right wx
+if (APPLE)
+  include(MacosWxwidgets)
+endif ()
+
 if (COMMAND late_init)
   late_init()
 endif ()

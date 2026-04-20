@@ -1,4 +1,4 @@
-Source: opencpn-1tracker-pi
+Source: opencpn
 Build-Depends: debhelper (>= 9),
  cmake,
  libcurl4-openssl-dev,
