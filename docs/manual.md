@@ -22,11 +22,11 @@ The **1tracker** plugin for OpenCPN periodically sends your boat's position (and
 
 ## Installation
 
-Install via the OpenCPN Plugin Catalog:
+Installation via the OpenCPN Plugin Catalog / Plugin Master is planned, but is **not available yet**.
 
-1. In OpenCPN, open **Options → Plugins**.
-2. Search for **1tracker**.
-3. Click **Install** and then **Enable**.
+For installation at this time, please **contact the author**.
+
+> **Temporary note:** The goal is to make installation possible via the Plugin Master. Until that is available, please contact the author for installation instructions or a test package.
 
 ---
 
