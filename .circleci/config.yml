@@ -1,13 +1,6 @@
 ---
 version: 2.2
 
-debian-steps: &debian-steps
-  steps:
-    - checkout
-    - run: ci/circleci-build-debian.sh
-    - run: sh -c "cd /build-$OCPN_TARGET; /bin/bash < upload.sh"
-    - run: sh -c "ci/git-push.sh /build-$OCPN_TARGET"
-
 flatpak-steps: &flatpak-steps
   steps:
     - checkout
@@ -92,26 +85,40 @@ jobs:
       - run: cd build-osx; /bin/bash < upload.sh
       - run: ci/git-push.sh build-osx
 
-std-filters: &std-filters
+# Filters
+branch-only: &branch-only
   filters:
     branches:
       ignore:
         - tmp
         - /tmp-.*/
+    tags:
+      ignore: /.*/
+
+tag-only: &tag-only
+  filters:
+    branches:
+      ignore: /.*/
+    tags:
+      only: /^v.*/
 
 workflows:
   version: 2
-  build_all:
+
+  # Runs on every branch push: quick Linux x86 feedback only
+  build-linux:
     jobs:
-
       - build-bookworm:
-          <<: *std-filters
+          <<: *branch-only
 
+  # Runs only on version tags (v*): full release build
+  release:
+    jobs:
+      - build-bookworm:
+          <<: *tag-only
       - build-bookworm-arm64:
-          <<: *std-filters
-
+          <<: *tag-only
       - build-flatpak-x86:
-          <<: *std-filters
-
+          <<: *tag-only
       - build-macos-universal:
-          <<: *std-filters
+          <<: *tag-only
