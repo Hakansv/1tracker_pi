@@ -5,6 +5,7 @@
 
 #include <json/json.h>
 
+#define NOMINMAX
 #include <curl/curl.h>
 
 #include <algorithm>
