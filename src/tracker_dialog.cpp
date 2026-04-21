@@ -7,6 +7,7 @@
 #include <memory>
 #include <string>
 
+#include <wx/version.h>
 #if wxCHECK_VERSION(3,1,6)
 #include <wx/bmpbndl.h>
 #endif
