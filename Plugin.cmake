@@ -130,7 +130,8 @@ macro(late_init)
     target_link_options(${PACKAGE_NAME} PRIVATE "-undefined" "dynamic_lookup")
   elseif (UNIX)
     target_link_options(${PACKAGE_NAME} PRIVATE
-        "-Wl,--unresolved-symbols=ignore-in-object-files")
+        "-Wl,--unresolved-symbols=ignore-in-object-files"
+        "-Wl,--allow-shlib-undefined")
   endif ()
 
   # Build core logic and link everything — only when wx is available
