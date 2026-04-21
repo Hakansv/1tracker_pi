@@ -77,5 +77,9 @@ set "CONFIG_FILE=%SCRIPTDIR%\..\cache\wx-config.bat"
 echo set "wxWidgets_ROOT_DIR=%wxWidgets_ROOT_DIR%" > %CONFIG_FILE%
 echo set "wxWidgets_LIB_DIR=%wxWidgets_LIB_DIR%" >> %CONFIG_FILE%
 
+:: Install libcurl for Win32 via vcpkg
+if exist "C:\Tools\vcpkg\vcpkg.exe" (
+  C:\Tools\vcpkg\vcpkg install curl[core]:x86-windows
+)
 
 refreshenv

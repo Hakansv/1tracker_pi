@@ -24,11 +24,17 @@ if not defined VCINSTALLDIR (
 if exist build (rmdir /s /q build)
 mkdir build && cd build
 
+set "VCPKG_TOOLCHAIN="
+if exist "C:\Tools\vcpkg\scripts\buildsystems\vcpkg.cmake" (
+  set "VCPKG_TOOLCHAIN=-DCMAKE_TOOLCHAIN_FILE=C:/Tools/vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x86-windows"
+)
+
 cmake -A Win32 -G "Visual Studio 17 2022" ^
     -DCMAKE_GENERATOR_PLATFORM=Win32 ^
     -DCMAKE_BUILD_TYPE=%CONFIGURATION% ^
     -DwxWidgets_LIB_DIR=!wxWidgets_LIB_DIR! ^
     -DwxWidgets_ROOT_DIR=!wxWidgets_ROOT_DIR! ^
+    !VCPKG_TOOLCHAIN! ^
     -DOCPN_TARGET_TUPLE=msvc-wx32;10;x86_64 ^
     ..
 cmake --build . --target tarball --config %CONFIGURATION%
