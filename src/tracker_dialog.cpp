@@ -331,7 +331,7 @@ private:
     const auto updatedConfig = GetConfig();
     std::string errorMessage;
     if (!applyConfigFn_(updatedConfig, &errorMessage)) {
-      wxMessageBox(wxString::FromUTF8(errorMessage), "1tracker",
+      wxMessageBox(wxString::FromUTF8(errorMessage.c_str()), "1tracker",
                    wxOK | wxICON_ERROR, this);
       return false;
     }
@@ -358,7 +358,7 @@ private:
 
     std::string errorMessage;
     if (!applyConfigFn_(config_, &errorMessage)) {
-      wxMessageBox(wxString::FromUTF8(errorMessage), "1tracker",
+      wxMessageBox(wxString::FromUTF8(errorMessage.c_str()), "1tracker",
                    wxOK | wxICON_ERROR, this);
       return false;
     }

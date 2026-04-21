@@ -124,6 +124,7 @@ macro(late_init)
       "${CMAKE_BINARY_DIR}/generated"
       "${CMAKE_SOURCE_DIR}/src"
       "${CMAKE_SOURCE_DIR}/include"
+      "${CMAKE_SOURCE_DIR}/opencpn-libs/jsoncpp/include"
   )
   target_compile_definitions(${PACKAGE_NAME} PRIVATE MAKING_PLUGIN)
 
