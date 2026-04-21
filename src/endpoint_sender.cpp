@@ -48,9 +48,9 @@ EndpointSender::Result validationFailureResult(const std::string& message) {
 }
 
 void addRequestHeaders(TrackerHttpClient& client, const EndpointRequest& request) {
-  client.AddHeader(wxString::FromUTF8("Content-Type: " + request.contentType));
+  client.AddHeader(wxString::FromUTF8(("Content-Type: " + request.contentType).c_str()));
   for (const auto& header : request.headers) {
-    client.AddHeader(wxString::FromUTF8(header));
+    client.AddHeader(wxString::FromUTF8(header.c_str()));
   }
 }
 
@@ -114,7 +114,7 @@ EndpointSender::Result EndpointSender::send(const EndpointConfig& endpoint,
   }
 
   const EndpointRequest request = behavior.buildRequest(endpoint, payload);
-  TrackerHttpClient client(wxString::FromUTF8(endpoint.url));
+  TrackerHttpClient client(wxString::FromUTF8(endpoint.url.c_str()));
   addRequestHeaders(client, request);
   configureTimeouts(client, endpoint);
 
