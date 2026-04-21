@@ -131,7 +131,7 @@ endif ()
 
 option(BUILD_TESTING "Build unit tests" ON)
 include(CTest)
-if (BUILD_TESTING AND TARGET onetracker_core)
+if (BUILD_TESTING AND TARGET onetracker_core AND "${BUILD_TYPE}" STREQUAL "")
   add_subdirectory(test)
 endif ()
 
