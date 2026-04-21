@@ -3,7 +3,9 @@
 #include <filesystem>
 #include <vector>
 
+#if wxCHECK_VERSION(3,1,6)
 #include <wx/bmpbndl.h>
+#endif
 #include <wx/filename.h>
 #include <wx/image.h>
 #include <wx/platform.h>
@@ -104,7 +106,11 @@ wxBitmap LoadBitmapFromPluginAsset(const wxString& fileName, const wxSize& size)
 
   wxFileName assetPath(path);
   if (assetPath.GetExt().CmpNoCase("svg") == 0) {
+#if wxCHECK_VERSION(3,1,6)
     return wxBitmapBundle::FromSVGFile(path, size).GetBitmap(size);
+#else
+    return wxNullBitmap;
+#endif
   }
 
   wxImage image;
