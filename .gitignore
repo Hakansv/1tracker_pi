@@ -1,9 +1,11 @@
 build/
 build-wx32/
+build-coverage/
 dist/
 out/
 Testing/
 tmp/
+.claude/
 *.user
 *.swp
 **/.DS_Store
