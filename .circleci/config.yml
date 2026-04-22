@@ -1,5 +1,5 @@
 ---
-version: 2.2
+version: 2.1
 
 parameters:
   catalog_only:
@@ -311,8 +311,6 @@ std-filters: &std-filters
         - /tmp-.*/
 
 workflows:
-  version: 2
-
   build_all:
     when:
       not: << pipeline.parameters.catalog_only >>
