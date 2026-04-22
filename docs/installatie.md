@@ -21,11 +21,16 @@ handmatig inschakelen door een regel toe te voegen aan het configuratiebestand.
 
 ### Configuratiebestand openen
 
-| Besturingssysteem | Locatie |
-|---|---|
-| **macOS** | `~/Library/Preferences/opencpn/opencpn.conf` |
-| **Linux** | `~/.opencpn/opencpn.conf` |
-| **Windows** | `%APPDATA%\opencpn\opencpn.ini` |
+De makkelijkste manier om het configuratiebestand te vinden:
+
+1. Klik in de OpenCPN-werkbalk op het **?-icoon**
+2. Kies **About OpenCPN**
+3. Je ziet daar de exacte naam en locatie van het configuratiebestand — klik erop om het direct te openen
+
+> **Standaardlocaties ter referentie:**
+> - macOS: `~/Library/Preferences/opencpn/opencpn.conf`
+> - Linux: `~/.opencpn/opencpn.conf`
+> - Windows: `%APPDATA%\opencpn\opencpn.ini`
 
 1. **Sluit OpenCPN volledig af**
 2. Open het configuratiebestand in een teksteditor
