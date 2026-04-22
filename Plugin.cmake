@@ -42,6 +42,7 @@ set(PKG_INFO_URL https://github.com/pa2wlt/1tracker_pi/blob/master/docs/manual.m
 
 # -------- Source files for the plugin shared library --------
 set(SRC
+    src/crash_guard.cpp
     src/plugin.cpp
     src/plugin_ui_utils.cpp
     src/tracker_dialog.cpp

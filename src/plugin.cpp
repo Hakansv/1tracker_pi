@@ -31,6 +31,7 @@
 #include "1tracker_pi/nfl_settings.h"
 #include "1tracker_pi/plugin_metadata.h"
 #include "1tracker_pi/version.h"
+#include "crash_guard.h"
 #include "plugin_ui_utils.h"
 #include "tracker_dialog.h"
 
@@ -150,10 +151,32 @@ std::string applyToolbarColors(const std::string& templateSvg,
 }  // namespace
 
 extern "C" DECL_EXP opencpn_plugin* create_pi(void* ppimgr) {
-  return new OneTrackerPi(ppimgr);
+  // This is the first entry point OCPN calls on the plugin's DLL. Install
+  // the SEH translator here too — so even a fault during `new OneTrackerPi`
+  // itself turns into a catchable C++ exception rather than a process
+  // crash.
+  tracker_pi::installSehTranslator();
+  try {
+    return new OneTrackerPi(ppimgr);
+  } catch (const std::exception& error) {
+    wxLogMessage("1tracker_pi: create_pi caught exception: %s", error.what());
+    return nullptr;
+  } catch (...) {
+    wxLogMessage("1tracker_pi: create_pi caught unknown exception");
+    return nullptr;
+  }
 }
 
-extern "C" DECL_EXP void destroy_pi(opencpn_plugin* p) { delete p; }
+extern "C" DECL_EXP void destroy_pi(opencpn_plugin* p) {
+  tracker_pi::installSehTranslator();
+  try {
+    delete p;
+  } catch (const std::exception& error) {
+    wxLogMessage("1tracker_pi: destroy_pi caught exception: %s", error.what());
+  } catch (...) {
+    wxLogMessage("1tracker_pi: destroy_pi caught unknown exception");
+  }
+}
 
 OneTrackerPi::OneTrackerPi(void* ppimgr) : opencpn_plugin_118(ppimgr) {}
 
@@ -175,6 +198,15 @@ void OneTrackerPi::createScheduler() {
 
 void OneTrackerPi::configureAndStartScheduler() {
   loadConfiguration();
+
+  if (!scheduler_) {
+    // createScheduler() failed earlier (its runGuarded caught the throw).
+    // Load the config anyway so it's visible in the dialog, but skip the
+    // scheduler so we don't null-deref.
+    logMessage("1tracker_pi: scheduler unavailable; skipping configure/start");
+    return;
+  }
+
   scheduler_->configure(runtimeConfig_);
 
   if (runtimeConfig_.enabled) {
@@ -185,28 +217,65 @@ void OneTrackerPi::configureAndStartScheduler() {
 }
 
 void OneTrackerPi::initializeToolbarTool() {
+  logMessage("1tracker_pi: toolbar init step=load_template");
   loadToolbarTemplate();
-  wxBitmap neutralBitmap = renderToolbarBitmap(ToolbarState::Neutral);
 
-  if (neutralBitmap.IsOk()) {
-    wxBitmap normalBitmap(neutralBitmap);
-    wxBitmap rolloverBitmap(neutralBitmap);
-    toolbarToolId_ = InsertPlugInTool(
-        "1tracker", &normalBitmap, &rolloverBitmap, wxITEM_NORMAL, "1tracker",
-        "Open tracker screen", nullptr, -1, 0, this);
-  } else {
-    toolbarToolId_ = InsertPlugInTool(
-        "1tracker", GetPlugInBitmap(), GetPlugInBitmap(), wxITEM_NORMAL,
-        "1tracker", "Open tracker screen", nullptr, -1, 0, this);
+  logMessage("1tracker_pi: toolbar init step=render_neutral");
+  wxBitmap neutralBitmap;
+  try {
+    neutralBitmap = renderToolbarBitmap(ToolbarState::Neutral);
+  } catch (const std::exception& error) {
+    logMessage(std::string("1tracker_pi: renderToolbarBitmap threw: ") +
+               error.what());
+  } catch (...) {
+    logMessage("1tracker_pi: renderToolbarBitmap threw unknown exception");
+  }
+
+  logMessage(std::string("1tracker_pi: toolbar init step=insert_tool, "
+                         "neutralBitmap_ok=") +
+             (neutralBitmap.IsOk() ? "true" : "false"));
+  try {
+    if (neutralBitmap.IsOk()) {
+      wxBitmap normalBitmap(neutralBitmap);
+      wxBitmap rolloverBitmap(neutralBitmap);
+      toolbarToolId_ = InsertPlugInTool(
+          "1tracker", &normalBitmap, &rolloverBitmap, wxITEM_NORMAL, "1tracker",
+          "Open tracker screen", nullptr, -1, 0, this);
+    } else {
+      // Defensive fallback: if our SVG didn't render, don't blindly hand
+      // OCPN whatever GetPlugInBitmap() returns — a null bitmap here has
+      // historically crashed OpenCPN on some Windows builds. Skip the tool
+      // entirely rather than risk a bad bitmap reaching the toolbar code.
+      toolbarToolId_ = -1;
+      logMessage("1tracker_pi: neutral bitmap invalid; skipping toolbar tool "
+                 "registration to avoid a crash");
+    }
+  } catch (const std::exception& error) {
+    toolbarToolId_ = -1;
+    logMessage(std::string("1tracker_pi: InsertPlugInTool threw: ") +
+               error.what());
+  } catch (...) {
+    toolbarToolId_ = -1;
+    logMessage("1tracker_pi: InsertPlugInTool threw unknown exception");
   }
 
   logMessage("1tracker_pi: toolbar tool id=" + std::to_string(toolbarToolId_) +
              ", template_bytes=" + std::to_string(toolbarTemplate_.size()));
   if (toolbarToolId_ == -1) {
-    logMessage("1tracker_pi: WARNING InsertPlugInTool returned -1; toolbar "
-               "button will not be visible");
+    logMessage("1tracker_pi: WARNING toolbar button will not be visible");
+    return;
   }
-  refreshToolbarIcon();
+
+  logMessage("1tracker_pi: toolbar init step=refresh_icon");
+  try {
+    refreshToolbarIcon();
+  } catch (const std::exception& error) {
+    logMessage(std::string("1tracker_pi: refreshToolbarIcon threw: ") +
+               error.what());
+  } catch (...) {
+    logMessage("1tracker_pi: refreshToolbarIcon threw unknown exception");
+  }
+  logMessage("1tracker_pi: toolbar init step=done");
 }
 
 void OneTrackerPi::logInitSummary() const {
@@ -220,27 +289,44 @@ void OneTrackerPi::logInitSummary() const {
 }
 
 int OneTrackerPi::Init() {
+  // Install the Windows SEH translator before we log anything: if *this*
+  // function blows up with an access violation, the translator turns it into
+  // a catchable std::runtime_error instead of a silent crash. No-op off-Win.
+  tracker_pi::installSehTranslator();
+
   logMessage("1tracker_pi: Init() enter");
   initialized_ = true;
 
+  // Install the process-wide unhandled-exception filter so any future crash
+  // writes a minidump next to the config. Uses the private data root if
+  // available; falls back to the current dir. Windows-only in practice.
   try {
-    createScheduler();
-    configureAndStartScheduler();
-    initializeToolbarTool();
-    logInitSummary();
-  } catch (const std::exception& error) {
-    runtimeConfig_.enabled = false;
-    logMessage(std::string("1tracker_pi: Init() failed, continuing disabled: ") +
-               error.what());
+    const auto dumpDir = getPrivateDataRoot().empty()
+                             ? std::filesystem::path("crash-dumps")
+                             : getPrivateDataRoot() / "plugins" /
+                                   "1tracker_pi" / "crash-dumps";
+    tracker_pi::installCrashHandler(dumpDir);
   } catch (...) {
-    runtimeConfig_.enabled = false;
-    logMessage("1tracker_pi: Init() failed with unknown exception, continuing disabled");
+    // Installing the crash handler must never itself crash Init().
   }
+
+  auto logger = [this](const std::string& message) { logMessage(message); };
+
+  tracker_pi::runGuarded("Init:createScheduler",
+                         [this] { createScheduler(); }, logger);
+  tracker_pi::runGuarded("Init:configureAndStartScheduler",
+                         [this] { configureAndStartScheduler(); }, logger);
+  tracker_pi::runGuarded("Init:initializeToolbarTool",
+                         [this] { initializeToolbarTool(); }, logger);
+  tracker_pi::runGuarded("Init:logInitSummary",
+                         [this] { logInitSummary(); }, logger);
 
   return kPluginCapabilities;
 }
 
 bool OneTrackerPi::DeInit() {
+  tracker_pi::installSehTranslator();
+
   if (!initialized_) {
     logMessage("1tracker_pi: DeInit() called before Init(), nothing to do");
     return true;
@@ -253,19 +339,28 @@ bool OneTrackerPi::DeInit() {
   // toolbar that's about to be removed.
   shutdownRequested_ = true;
 
-  if (trackerDialog_ != nullptr) {
-    DestroyTrackerDialog(trackerDialog_);
-    trackerDialog_ = nullptr;
-  }
+  auto logger = [this](const std::string& message) { logMessage(message); };
 
-  if (scheduler_) {
-    scheduler_->stop();
-    scheduler_.reset();
-  }
-  if (toolbarToolId_ != -1) {
-    RemovePlugInTool(toolbarToolId_);
-    toolbarToolId_ = -1;
-  }
+  tracker_pi::runGuarded("DeInit:destroyDialog", [this] {
+    if (trackerDialog_ != nullptr) {
+      DestroyTrackerDialog(trackerDialog_);
+      trackerDialog_ = nullptr;
+    }
+  }, logger);
+
+  tracker_pi::runGuarded("DeInit:stopScheduler", [this] {
+    if (scheduler_) {
+      scheduler_->stop();
+      scheduler_.reset();
+    }
+  }, logger);
+
+  tracker_pi::runGuarded("DeInit:removeToolbarTool", [this] {
+    if (toolbarToolId_ != -1) {
+      RemovePlugInTool(toolbarToolId_);
+      toolbarToolId_ = -1;
+    }
+  }, logger);
 
   initialized_ = false;
   logMessage("1tracker_pi: DeInit() complete");
@@ -295,23 +390,29 @@ wxString OneTrackerPi::GetLongDescription() {
 int OneTrackerPi::GetToolbarToolCount() { return 1; }
 
 void OneTrackerPi::OnToolbarToolCallback(int id) {
-  if (id == toolbarToolId_) {
-    openTrackerDialog(TrackerDialogEntryMode::Trackers, GetOCPNCanvasWindow(),
-                      DialogParentPolicy::ResolveToTopLevel, "toolbar");
-  }
+  tracker_pi::installSehTranslator();
+  tracker_pi::runGuarded("OnToolbarToolCallback", [this, id] {
+    if (id == toolbarToolId_) {
+      openTrackerDialog(TrackerDialogEntryMode::Trackers, GetOCPNCanvasWindow(),
+                        DialogParentPolicy::ResolveToTopLevel, "toolbar");
+    }
+  }, [this](const std::string& m) { logMessage(m); });
 }
 
 void OneTrackerPi::ShowPreferencesDialog(wxWindow* parent) {
-  wxWindow* dialogParent = parent;
-  if (dialogParent == nullptr) {
-    dialogParent = GetActiveOptionsDialog();
-  }
-  if (dialogParent == nullptr) {
-    dialogParent = GetOCPNCanvasWindow();
-  }
+  tracker_pi::installSehTranslator();
+  tracker_pi::runGuarded("ShowPreferencesDialog", [this, parent] {
+    wxWindow* dialogParent = parent;
+    if (dialogParent == nullptr) {
+      dialogParent = GetActiveOptionsDialog();
+    }
+    if (dialogParent == nullptr) {
+      dialogParent = GetOCPNCanvasWindow();
+    }
 
-  openTrackerDialog(TrackerDialogEntryMode::Preferences, dialogParent,
-                    DialogParentPolicy::UseAsIs, "preferences");
+    openTrackerDialog(TrackerDialogEntryMode::Preferences, dialogParent,
+                      DialogParentPolicy::UseAsIs, "preferences");
+  }, [this](const std::string& m) { logMessage(m); });
 }
 
 std::map<std::string, tracker_pi::EndpointUiState>
@@ -409,16 +510,27 @@ void OneTrackerPi::updateEndpointStatus(
 }
 
 void OneTrackerPi::SetPositionFix(PlugIn_Position_Fix& pfix) {
-  stateStore_.updateLatLon(pfix.Lat, pfix.Lon);
-  stateStore_.updateTimevalue(static_cast<std::int64_t>(pfix.FixTime));
+  tracker_pi::installSehTranslator();
+  tracker_pi::runGuarded("SetPositionFix", [this, &pfix] {
+    stateStore_.updateLatLon(pfix.Lat, pfix.Lon);
+    stateStore_.updateTimevalue(static_cast<std::int64_t>(pfix.FixTime));
+  }, [this](const std::string& m) { logMessage(m); });
 }
 
 void OneTrackerPi::SetPositionFixEx(PlugIn_Position_Fix_Ex& pfix) {
-  stateStore_.updateLatLon(pfix.Lat, pfix.Lon);
-  stateStore_.updateTimevalue(static_cast<std::int64_t>(pfix.FixTime));
+  tracker_pi::installSehTranslator();
+  tracker_pi::runGuarded("SetPositionFixEx", [this, &pfix] {
+    stateStore_.updateLatLon(pfix.Lat, pfix.Lon);
+    stateStore_.updateTimevalue(static_cast<std::int64_t>(pfix.FixTime));
+  }, [this](const std::string& m) { logMessage(m); });
 }
 
-void OneTrackerPi::SetNMEASentence(wxString& sentence) { handleWindSentence(sentence); }
+void OneTrackerPi::SetNMEASentence(wxString& sentence) {
+  tracker_pi::installSehTranslator();
+  tracker_pi::runGuarded("SetNMEASentence", [this, &sentence] {
+    handleWindSentence(sentence);
+  }, [this](const std::string& m) { logMessage(m); });
+}
 
 void OneTrackerPi::handleWindSentence(const wxString& sentence) {
   const std::string raw = sentence.ToStdString();
@@ -666,12 +778,25 @@ OneTrackerPi::ToolbarState OneTrackerPi::computeToolbarState() const {
 void OneTrackerPi::loadToolbarTemplate() {
   toolbarTemplate_.clear();
 
-  const wxString baseIcon = tracker_plugin_ui::FindPluginAssetPath(kToolbarBaseIcon);
+  logMessage("1tracker_pi: loadToolbarTemplate step=resolve_asset_path");
+  wxString baseIcon;
+  try {
+    baseIcon = tracker_plugin_ui::FindPluginAssetPath(kToolbarBaseIcon);
+  } catch (const std::exception& error) {
+    logMessage(std::string("1tracker_pi: FindPluginAssetPath threw: ") +
+               error.what());
+    return;
+  } catch (...) {
+    logMessage("1tracker_pi: FindPluginAssetPath threw unknown exception");
+    return;
+  }
   if (baseIcon.empty()) {
     logMessage("1tracker_pi: toolbar template not found for " +
                std::string(kToolbarBaseIcon));
     return;
   }
+  logMessage("1tracker_pi: loadToolbarTemplate resolved path=" +
+             std::string(baseIcon.ToUTF8()));
 
   wxFile file;
   if (!file.Open(baseIcon)) {

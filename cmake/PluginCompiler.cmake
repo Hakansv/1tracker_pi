@@ -34,6 +34,14 @@ elseif (CMAKE_CXX_COMPILER_ID MATCHES "Clang")           # Apple is AppleClang
 elseif (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
   add_definitions(-D_CRT_NONSTDC_NO_DEPRECATE -D_CRT_SECURE_NO_DEPRECATE)
   add_definitions(-DwxABI_VERSION=30202)     # See #584
+  # /EHa (vs the default /EHsc) lets _set_se_translator map Windows
+  # structured exceptions — access violations, stack overflows — into
+  # catchable C++ exceptions. Without this, an AV in the plugin or any
+  # library it calls (wxcurl, libcurl) takes OpenCPN down.
+  string(REGEX REPLACE "/EHsc?" "/EHa" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+  if (NOT CMAKE_CXX_FLAGS MATCHES "/EHa")
+    string(APPEND CMAKE_CXX_FLAGS " /EHa")
+  endif ()
 endif ()
 
 if (UNIX AND NOT APPLE)   # linux, see OpenCPN/OpenCPN#1977

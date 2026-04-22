@@ -7,6 +7,12 @@
 #include <iomanip>
 #include <sstream>
 
+#ifdef _WIN32
+#include <eh.h>
+#include <cstdio>
+#include <stdexcept>
+#endif
+
 namespace tracker_pi {
 namespace {
 
@@ -320,6 +326,18 @@ std::size_t Scheduler::tickAt(Clock::time_point now) {
 }
 
 void Scheduler::runLoop() {
+#ifdef _WIN32
+  // Per-thread: translate Windows structured exceptions (access violations,
+  // etc.) into C++ exceptions we can catch below. Otherwise an AV in any
+  // downstream call (wxcurl, libcurl, DNS, jsoncpp) kills OCPN.
+  _set_se_translator([](unsigned int code, EXCEPTION_POINTERS*) {
+    char buffer[96];
+    std::snprintf(buffer, sizeof(buffer),
+                  "Scheduler worker SEH 0x%08x", code);
+    throw std::runtime_error(buffer);
+  });
+#endif
+
   while (!stopRequested_) {
     std::unique_lock<std::mutex> lock(mutex_);
     const bool interrupted = condition_.wait_for(
@@ -331,7 +349,18 @@ void Scheduler::runLoop() {
       break;
     }
 
-    tick();
+    try {
+      tick();
+    } catch (const std::exception& error) {
+      if (logFn_) {
+        logFn_(std::string("1tracker_pi: scheduler tick threw: ") +
+               error.what());
+      }
+    } catch (...) {
+      if (logFn_) {
+        logFn_("1tracker_pi: scheduler tick threw unknown exception");
+      }
+    }
   }
 }
 

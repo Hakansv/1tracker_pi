@@ -18,22 +18,37 @@ namespace {
 const char* kPluginName = "1tracker_pi";
 
 wxString existingAssetPath(const std::filesystem::path& path) {
-  return std::filesystem::exists(path) ? wxString::FromUTF8(path.string().c_str())
-                                       : "";
+  std::error_code ec;
+  return std::filesystem::exists(path, ec)
+             ? wxString::FromUTF8(path.string().c_str())
+             : wxString("");
 }
 
 std::vector<std::filesystem::path> pluginAssetSearchRoots() {
   std::vector<std::filesystem::path> roots;
-  const wxString pluginDataDir = GetPluginDataDir(kPluginName);
-  if (!pluginDataDir.empty()) {
-    roots.emplace_back(pluginDataDir.ToStdString());
+  try {
+    const wxString pluginDataDir = GetPluginDataDir(kPluginName);
+    if (!pluginDataDir.empty()) {
+      roots.emplace_back(pluginDataDir.ToStdString());
+    }
+  } catch (...) {
+    // GetPluginDataDir can return unexpected data on some OCPN hosts; if
+    // constructing the path throws, skip this root rather than crash.
   }
 
-  const std::filesystem::path sourceDataDir =
-      std::filesystem::path(__FILE__).parent_path().parent_path() / "data" /
-      "icons";
-  if (std::filesystem::exists(sourceDataDir)) {
-    roots.push_back(sourceDataDir);
+  // The source-tree fallback uses __FILE__, which on a release build can be
+  // a path that no longer exists (or that contains characters that trip
+  // std::filesystem on some locales). Never let that take the process down.
+  try {
+    const std::filesystem::path sourceDataDir =
+        std::filesystem::path(__FILE__).parent_path().parent_path() / "data" /
+        "icons";
+    std::error_code ec;
+    if (std::filesystem::exists(sourceDataDir, ec)) {
+      roots.push_back(sourceDataDir);
+    }
+  } catch (...) {
+    // Ignored by design.
   }
   return roots;
 }
