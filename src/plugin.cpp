@@ -11,15 +11,22 @@
 
 #include <json/json.h>
 
+#include <wx/app.h>
+#if wxCHECK_VERSION(3, 1, 6)
+#include <wx/bmpbndl.h>
+#endif
 #include <wx/button.h>
 #include <wx/datetime.h>
 #include <wx/dialog.h>
+#include <wx/file.h>
 #include <wx/log.h>
+#include <wx/msgdlg.h>
 #include <wx/sizer.h>
 #include <wx/stattext.h>
 #include <wx/string.h>
 #include <wx/window.h>
 
+#include "1tracker_pi/atomic_file_writer.h"
 #include "1tracker_pi/endpoint_policy.h"
 #include "1tracker_pi/nfl_settings.h"
 #include "1tracker_pi/plugin_metadata.h"
@@ -33,9 +40,6 @@ constexpr int kApiVersionMajor = 1;
 constexpr int kApiVersionMinor = 18;
 constexpr int kPreferencesDialogWidth = 576;
 const char* kToolbarBaseIcon = "1tracker_toolbar_icon.svg";
-const char* kToolbarNeutralIcon = "toolbar_icon_neutral.svg";
-const char* kToolbarGreenIcon = "toolbar_icon_green.svg";
-const char* kToolbarRedIcon = "toolbar_icon_red.svg";
 const char* kToolbarColorWhite = "#d0d0d0";
 const char* kToolbarColorBlack = "#333333";
 const char* kToolbarColorGreen = "#2e7d32";
@@ -96,29 +100,17 @@ struct ToolbarIconColors {
   std::string boatFill;
 };
 
-struct ToolbarIconPaths {
-  std::filesystem::path neutral;
-  std::filesystem::path green;
-  std::filesystem::path red;
-};
-
-std::string toolbarCacheBustToken(const std::filesystem::path& sourcePath) {
-  try {
-    const auto ticks = std::filesystem::last_write_time(sourcePath)
-                           .time_since_epoch()
-                           .count();
-    return std::to_string(static_cast<long long>(ticks));
-  } catch (...) {
-    return "0";
+wxBitmap renderSvgStringToBitmap(const std::string& svg) {
+#if wxCHECK_VERSION(3, 1, 6)
+  if (svg.empty()) {
+    return wxNullBitmap;
   }
-}
-
-std::filesystem::path toolbarIconVariantPath(
-    const std::filesystem::path& outputDir, const char* baseName,
-    const std::string& cacheBustToken) {
-  const std::filesystem::path basePath(baseName);
-  return outputDir / (basePath.stem().string() + "_" + cacheBustToken +
-                      basePath.extension().string());
+  const wxSize size(kToolbarBitmapSize, kToolbarBitmapSize);
+  return wxBitmapBundle::FromSVG(svg.c_str(), size).GetBitmap(size);
+#else
+  (void)svg;
+  return wxNullBitmap;
+#endif
 }
 
 wxWindow* resolveDialogParent(wxWindow* candidate) {
@@ -147,46 +139,12 @@ std::string describeWindow(wxWindow* window) {
   return stream.str();
 }
 
-ToolbarIconPaths buildToolbarIconPaths(const std::filesystem::path& outputDir,
-                                       const std::filesystem::path& sourcePath) {
-  const std::string cacheBustToken = toolbarCacheBustToken(sourcePath);
-  return ToolbarIconPaths{
-      toolbarIconVariantPath(outputDir, kToolbarNeutralIcon, cacheBustToken),
-      toolbarIconVariantPath(outputDir, kToolbarGreenIcon, cacheBustToken),
-      toolbarIconVariantPath(outputDir, kToolbarRedIcon, cacheBustToken)};
-}
-
-wxBitmap loadToolbarBitmap(const std::filesystem::path& iconPath) {
-  if (!std::filesystem::exists(iconPath)) {
-    return wxNullBitmap;
-  }
-
-  const wxString svgPath = wxString::FromUTF8(iconPath.string().c_str());
-  return GetBitmapFromSVGFile(svgPath, kToolbarBitmapSize, kToolbarBitmapSize);
-}
-
-bool writeColoredToolbarIcon(const std::filesystem::path& sourcePath,
-                             const std::filesystem::path& targetPath,
-                             const ToolbarIconColors& colors) {
-  std::ifstream input(sourcePath);
-  if (!input.is_open()) {
-    return false;
-  }
-
-  std::ostringstream buffer;
-  buffer << input.rdbuf();
-  std::string svg = replaceAll(buffer.str(), "__MARKER_FILL__", colors.markerFill);
+std::string applyToolbarColors(const std::string& templateSvg,
+                               const ToolbarIconColors& colors) {
+  std::string svg = replaceAll(templateSvg, "__MARKER_FILL__", colors.markerFill);
   svg = replaceAll(svg, "__MARKER_STROKE__", colors.markerStroke);
   svg = replaceAll(svg, "__BOAT_FILL__", colors.boatFill);
-
-  std::filesystem::create_directories(targetPath.parent_path());
-  std::ofstream output(targetPath);
-  if (!output.is_open()) {
-    return false;
-  }
-
-  output << svg;
-  return true;
+  return svg;
 }
 
 }  // namespace
@@ -227,17 +185,12 @@ void OneTrackerPi::configureAndStartScheduler() {
 }
 
 void OneTrackerPi::initializeToolbarTool() {
-  refreshToolbarIcon();
-  const auto toolbarIconPaths = buildToolbarIconPaths(
-      configPath_.parent_path(),
-      tracker_plugin_ui::FindPluginAssetPath(kToolbarBaseIcon).ToStdString());
-  const auto toolbarIconPath = toolbarIconPaths.neutral;
-  const wxBitmap trackerBitmap = loadToolbarBitmap(toolbarIconPath);
-  logMessage("1tracker_pi: toolbar icon=" + toolbarIconPath.string());
+  loadToolbarTemplate();
+  wxBitmap neutralBitmap = renderToolbarBitmap(ToolbarState::Neutral);
 
-  if (trackerBitmap.IsOk()) {
-    wxBitmap normalBitmap(trackerBitmap);
-    wxBitmap rolloverBitmap(trackerBitmap);
+  if (neutralBitmap.IsOk()) {
+    wxBitmap normalBitmap(neutralBitmap);
+    wxBitmap rolloverBitmap(neutralBitmap);
     toolbarToolId_ = InsertPlugInTool(
         "1tracker", &normalBitmap, &rolloverBitmap, wxITEM_NORMAL, "1tracker",
         "Open tracker screen", nullptr, -1, 0, this);
@@ -247,6 +200,12 @@ void OneTrackerPi::initializeToolbarTool() {
         "1tracker", "Open tracker screen", nullptr, -1, 0, this);
   }
 
+  logMessage("1tracker_pi: toolbar tool id=" + std::to_string(toolbarToolId_) +
+             ", template_bytes=" + std::to_string(toolbarTemplate_.size()));
+  if (toolbarToolId_ == -1) {
+    logMessage("1tracker_pi: WARNING InsertPlugInTool returned -1; toolbar "
+               "button will not be visible");
+  }
   refreshToolbarIcon();
 }
 
@@ -264,10 +223,19 @@ int OneTrackerPi::Init() {
   logMessage("1tracker_pi: Init() enter");
   initialized_ = true;
 
-  createScheduler();
-  configureAndStartScheduler();
-  initializeToolbarTool();
-  logInitSummary();
+  try {
+    createScheduler();
+    configureAndStartScheduler();
+    initializeToolbarTool();
+    logInitSummary();
+  } catch (const std::exception& error) {
+    runtimeConfig_.enabled = false;
+    logMessage(std::string("1tracker_pi: Init() failed, continuing disabled: ") +
+               error.what());
+  } catch (...) {
+    runtimeConfig_.enabled = false;
+    logMessage("1tracker_pi: Init() failed with unknown exception, continuing disabled");
+  }
 
   return kPluginCapabilities;
 }
@@ -279,6 +247,11 @@ bool OneTrackerPi::DeInit() {
   }
 
   logMessage("1tracker_pi: DeInit() enter");
+
+  // Flip the shutdown flag BEFORE stopping the scheduler so any CallAfter
+  // posted by an in-flight send sees it and no-ops instead of touching a
+  // toolbar that's about to be removed.
+  shutdownRequested_ = true;
 
   if (trackerDialog_ != nullptr) {
     DestroyTrackerDialog(trackerDialog_);
@@ -341,6 +314,23 @@ void OneTrackerPi::ShowPreferencesDialog(wxWindow* parent) {
                     DialogParentPolicy::UseAsIs, "preferences");
 }
 
+std::map<std::string, tracker_pi::EndpointUiState>
+OneTrackerPi::snapshotEndpointStatuses() const {
+  std::lock_guard<std::mutex> lock(endpointStatusMutex_);
+  return endpointStatuses_;
+}
+
+void OneTrackerPi::handleDialogOpenFailure(wxWindow* parent,
+                                            const std::string& message) {
+  if (trackerDialog_ != nullptr) {
+    DestroyTrackerDialog(trackerDialog_);
+    trackerDialog_ = nullptr;
+  }
+  logMessage("1tracker_pi: failed to open tracker dialog: " + message);
+  wxMessageBox(wxString::FromUTF8(message.c_str()), "1tracker",
+               wxOK | wxICON_ERROR, parent);
+}
+
 void OneTrackerPi::openTrackerDialog(TrackerDialogEntryMode mode,
                                      wxWindow* parent,
                                      DialogParentPolicy parentPolicy,
@@ -369,25 +359,25 @@ void OneTrackerPi::openTrackerDialog(TrackerDialogEntryMode mode,
     return;
   }
 
-  std::map<std::string, tracker_pi::EndpointUiState> endpointStatuses;
-  {
-    std::lock_guard<std::mutex> lock(endpointStatusMutex_);
-    endpointStatuses = endpointStatuses_;
+  try {
+    trackerDialog_ = CreateTrackerDialog(
+        resolvedParent, configPath_, runtimeConfig_, snapshotEndpointStatuses(),
+        [this](const tracker_pi::RuntimeConfig& updatedConfig,
+               std::string* errorMessage) {
+          if (!saveConfiguration(updatedConfig, errorMessage)) {
+            return false;
+          }
+          applyRuntimeConfig(updatedConfig);
+          return true;
+        },
+        mode, [this] { trackerDialog_ = nullptr; });
+
+    ShowTrackerDialog(trackerDialog_);
+  } catch (const std::exception& error) {
+    handleDialogOpenFailure(topLevelParent, error.what());
+  } catch (...) {
+    handleDialogOpenFailure(topLevelParent, "Unknown error opening tracker dialog");
   }
-
-  trackerDialog_ = CreateTrackerDialog(
-      resolvedParent, configPath_, runtimeConfig_, endpointStatuses,
-      [this](const tracker_pi::RuntimeConfig& updatedConfig,
-             std::string* errorMessage) {
-        if (!saveConfiguration(updatedConfig, errorMessage)) {
-          return false;
-        }
-        applyRuntimeConfig(updatedConfig);
-        return true;
-      },
-      mode, [this] { trackerDialog_ = nullptr; });
-
-  ShowTrackerDialog(trackerDialog_);
 }
 
 void OneTrackerPi::updateEndpointStatus(
@@ -406,7 +396,16 @@ void OneTrackerPi::updateEndpointStatus(
       endpointState.lastErrorMessage = result.message;
     }
   }
-  refreshToolbarIcon();
+  // This runs on the scheduler's worker thread. wx UI calls (SetToolbarToolBitmaps)
+  // must be marshalled to the main thread.
+  if (wxTheApp != nullptr) {
+    wxTheApp->CallAfter([this] {
+      if (shutdownRequested_.load()) {
+        return;
+      }
+      refreshToolbarIcon();
+    });
+  }
 }
 
 void OneTrackerPi::SetPositionFix(PlugIn_Position_Fix& pfix) {
@@ -527,11 +526,11 @@ bool OneTrackerPi::loadFallbackConfiguration() {
 
 void OneTrackerPi::loadConfiguration() {
   runtimeConfig_ = tracker_pi::RuntimeConfig{};
-  initializeConfigPath();
-  logConfigPathResolution();
-  createDefaultConfigIfMissing();
 
   try {
+    initializeConfigPath();
+    logConfigPathResolution();
+    createDefaultConfigIfMissing();
     loadConfigurationFromPath(configPath_);
   } catch (const std::exception& error) {
     if (loadFallbackConfiguration()) {
@@ -545,8 +544,6 @@ void OneTrackerPi::loadConfiguration() {
 
 bool OneTrackerPi::writeRuntimeConfigFile(
     const tracker_pi::RuntimeConfig& config) const {
-  std::filesystem::create_directories(configPath_.parent_path());
-
   Json::Value root(Json::objectValue);
   root["enabled"] = config.enabled;
 
@@ -571,13 +568,8 @@ bool OneTrackerPi::writeRuntimeConfigFile(
   Json::StreamWriterBuilder builder;
   builder["indentation"] = "  ";
 
-  std::ofstream stream(configPath_);
-  if (!stream.is_open()) {
-    throw std::runtime_error("Unable to open config file for writing: " +
-                             configPath_.string());
-  }
-
-  stream << Json::writeString(builder, root) << '\n';
+  tracker_pi::writeFileAtomically(configPath_,
+                                  Json::writeString(builder, root) + "\n");
   return true;
 }
 
@@ -671,57 +663,61 @@ OneTrackerPi::ToolbarState OneTrackerPi::computeToolbarState() const {
                                                     : ToolbarState::Neutral;
 }
 
-void OneTrackerPi::ensureToolbarIconAssets(
-    const std::filesystem::path& sourcePath,
-    const std::filesystem::path& outputDir) const {
-  const ToolbarIconPaths iconPaths = buildToolbarIconPaths(outputDir, sourcePath);
-  writeColoredToolbarIcon(
-      sourcePath, iconPaths.neutral,
-      ToolbarIconColors{kToolbarColorBlack, kToolbarColorWhite,
-                        kToolbarColorWhite});
-  writeColoredToolbarIcon(
-      sourcePath, iconPaths.green,
-      ToolbarIconColors{kToolbarColorGreen, kToolbarColorWhite,
-                        kToolbarColorWhite});
-  writeColoredToolbarIcon(
-      sourcePath, iconPaths.red,
-      ToolbarIconColors{kToolbarColorRed, kToolbarColorWhite, kToolbarColorWhite});
+void OneTrackerPi::loadToolbarTemplate() {
+  toolbarTemplate_.clear();
+
+  const wxString baseIcon = tracker_plugin_ui::FindPluginAssetPath(kToolbarBaseIcon);
+  if (baseIcon.empty()) {
+    logMessage("1tracker_pi: toolbar template not found for " +
+               std::string(kToolbarBaseIcon));
+    return;
+  }
+
+  wxFile file;
+  if (!file.Open(baseIcon)) {
+    logMessage("1tracker_pi: failed to open toolbar template at " +
+               std::string(baseIcon.ToUTF8()));
+    return;
+  }
+
+  wxString contents;
+  if (!file.ReadAll(&contents)) {
+    logMessage("1tracker_pi: failed to read toolbar template at " +
+               std::string(baseIcon.ToUTF8()));
+    return;
+  }
+
+  toolbarTemplate_ = std::string(contents.ToUTF8());
+  logMessage("1tracker_pi: loaded toolbar template from " +
+             std::string(baseIcon.ToUTF8()) + " (" +
+             std::to_string(toolbarTemplate_.size()) + " bytes)");
 }
 
-void OneTrackerPi::applyToolbarIcon(const std::filesystem::path& iconPath) {
-  if (toolbarToolId_ == -1 || !std::filesystem::exists(iconPath)) {
-    return;
+wxBitmap OneTrackerPi::renderToolbarBitmap(ToolbarState state) const {
+  if (toolbarTemplate_.empty()) {
+    return wxNullBitmap;
   }
-
-  wxBitmap normalBitmap = loadToolbarBitmap(iconPath);
-  if (!normalBitmap.IsOk()) {
-    return;
+  ToolbarIconColors colors{kToolbarColorBlack, kToolbarColorWhite,
+                           kToolbarColorWhite};
+  if (state == ToolbarState::Green) {
+    colors.markerFill = kToolbarColorGreen;
+  } else if (state == ToolbarState::Red) {
+    colors.markerFill = kToolbarColorRed;
   }
-
-  wxBitmap rolloverBitmap(normalBitmap);
-  SetToolbarToolBitmaps(toolbarToolId_, &normalBitmap, &rolloverBitmap);
+  const std::string svg = applyToolbarColors(toolbarTemplate_, colors);
+  return renderSvgStringToBitmap(svg);
 }
 
 void OneTrackerPi::refreshToolbarIcon() {
-  const wxString baseIcon = tracker_plugin_ui::FindPluginAssetPath(kToolbarBaseIcon);
-  if (baseIcon.empty() || configPath_.empty()) {
+  if (toolbarToolId_ == -1) {
     return;
   }
-
-  const std::filesystem::path sourcePath(baseIcon.ToStdString());
-  const std::filesystem::path outputDir = configPath_.parent_path();
-  const ToolbarIconPaths iconPaths = buildToolbarIconPaths(outputDir, sourcePath);
-  ensureToolbarIconAssets(sourcePath, outputDir);
-
-  std::filesystem::path iconPath = iconPaths.neutral;
-  const ToolbarState toolbarState = computeToolbarState();
-  if (toolbarState == ToolbarState::Green) {
-    iconPath = iconPaths.green;
-  } else if (toolbarState == ToolbarState::Red) {
-    iconPath = iconPaths.red;
+  wxBitmap bitmap = renderToolbarBitmap(computeToolbarState());
+  if (!bitmap.IsOk()) {
+    return;
   }
-
-  applyToolbarIcon(iconPath);
+  wxBitmap rolloverBitmap(bitmap);
+  SetToolbarToolBitmaps(toolbarToolId_, &bitmap, &rolloverBitmap);
 }
 
 void OneTrackerPi::logMessage(const std::string& message) const {

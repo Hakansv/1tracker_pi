@@ -92,6 +92,8 @@ This is the top-level coordinator of the plugin.
 Files:
 
 - `src/config_loader.cpp`
+- `src/atomic_file_writer.cpp`
+- `include/1tracker_pi/atomic_file_writer.h`
 - config save logic in `src/plugin.cpp`
 
 Responsibilities:
@@ -99,7 +101,9 @@ Responsibilities:
 - parse `config.json`
 - convert JSON into `RuntimeConfig`
 - load defaults and normalize values
-- write the current runtime config back to disk
+- write the current runtime config back to disk atomically
+  (temp file + `std::filesystem::rename`, so a crash mid-write never leaves
+  a half-written config)
 
 This component owns the on-disk configuration format.
 
@@ -197,6 +201,8 @@ Files:
 
 - `src/tracker_dialog.cpp`
 - `src/tracker_dialog.h`
+- `src/endpoint_error_summary.cpp`
+- `include/1tracker_pi/endpoint_error_summary.h`
 
 Responsibilities:
 
@@ -205,8 +211,13 @@ Responsibilities:
 - info/help screen
 - preferences entry mode
 - endpoint-type-aware UI updates
+- translate raw transport errors into short user-facing messages
+- decide what the error panel should show for a given endpoint (pure
+  `computeEndpointErrorUiState` helper, testable without wx)
 
-This is the main maintainable UI surface of the plugin.
+This is the main maintainable UI surface of the plugin. The pure
+error-summary helpers live in the core library so they can be unit-tested
+without wxWidgets.
 
 ### 9. UI Utilities And Asset Handling
 
@@ -225,6 +236,10 @@ Responsibilities:
 This component keeps file/path/bitmap mechanics out of the main plugin and
 dialog logic.
 
+Assets live in `data/icons/`. Despite the folder name, it holds both toolbar
+icons (SVG) and branding/header artwork (PNG) — see
+`docs/release-toolbar-icons.md` for the toolbar icon flow specifically.
+
 ### 10. Tests
 
 Files:
@@ -235,13 +250,20 @@ Responsibilities:
 
 - verify config loading
 - verify payload building
-- verify endpoint sending
-- verify scheduler behavior
+- verify endpoint sending (happy path, NFL specifics, connection-refused, secret redaction)
+- verify scheduler behavior (intervals, min-distance, enabled/disabled, log hooks)
 - verify endpoint identity rules
 - verify endpoint type behavior
 - verify secret masking
+- verify state-store input validation (NaN, range bounds for lat/lon/wind)
+- verify the pure error-summary translation and UI-state computation
+- verify atomic file writes (happy path, overwrite, binary content, failure paths)
 
 The tests focus on the maintainable core outside the OpenCPN runtime.
+
+Line coverage for the core library (tested `src/` files only) is tracked via
+`ci/run-coverage.sh`, which produces an HTML report under
+`build-coverage/html/`. As of the last refactor it sits at ~85%.
 
 ## Component Interaction
 
@@ -299,6 +321,7 @@ EndpointConfig
  ├── enabled
  ├── includeAwaAws
  ├── sendIntervalMinutes
+ ├── minDistanceMeters
  ├── url
  ├── timeoutSeconds
  ├── headerName
@@ -401,9 +424,10 @@ The plugin has three toolbar states:
 - green / active
 - red / issue
 
-The source is a single SVG in the plugin data directory. At runtime the plugin
-generates color variants with cache-busting filenames, because OpenCPN caches
-aggressively by filename.
+The source is a single SVG template in the plugin data directory. At runtime
+the plugin substitutes color tokens in the template string in memory and
+renders each variant via `wxBitmapBundle::FromSVG`. No files are written or
+cached on disk.
 
 Toolbar status is derived from the known endpoint results:
 
@@ -436,6 +460,12 @@ Worker thread
 `StateStore`, scheduler config, and endpoint status therefore need to be safe
 under concurrent access.
 
+All wxWidgets UI calls are done on the UI thread. When the scheduler's
+worker thread wants to refresh the toolbar icon after a send finishes, it
+posts the work to the UI thread via `wxTheApp->CallAfter(...)` rather than
+calling `SetToolbarToolBitmaps` directly — on GTK/Linux a cross-thread wx
+call would crash the host.
+
 ## Logging And Error Handling
 
 The plugin logs, among other things:
@@ -452,6 +482,12 @@ Important design choices:
 - a failure in one endpoint does not block other endpoints
 - a missing config file is automatically recovered
 - secrets are masked in log output where possible
+- `Init()` wraps its entire body in try/catch so no plugin exception can
+  escape to OpenCPN's event loop (a thrown init used to crash the host)
+- config writes are atomic (temp file + rename) so a crash mid-save never
+  corrupts the user's endpoints
+- `StateStore` rejects NaN / out-of-range lat, lon, AWA, and AWS values so
+  a buggy upstream source can't propagate garbage into the payload
 
 ## Test Strategy
 

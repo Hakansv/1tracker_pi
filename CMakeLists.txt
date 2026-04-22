@@ -101,32 +101,6 @@ if (APPLE)
     COMMENT "Build, deploy, gracefully restart OpenCPN"
   )
 
-  add_custom_target(refresh_toolbar_icons_dev
-    COMMAND "${CMAKE_COMMAND}" -E make_directory "${OCPN_DEV_PLUGIN_DIR}"
-    COMMAND "${CMAKE_COMMAND}" -E make_directory "${OCPN_DEV_PLUGIN_DATA_DIR}"
-    COMMAND "${CMAKE_COMMAND}" -E create_symlink
-            "$<TARGET_FILE:${CMAKE_PROJECT_NAME}>"
-            "${OCPN_DEV_PLUGIN_DIR}/lib${PKG_NAME}.dylib"
-    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-            "${CMAKE_SOURCE_DIR}/data/icons/1tracker_icon.svg"
-            "${OCPN_DEV_PLUGIN_DATA_DIR}/1tracker_icon.svg"
-    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-            "${CMAKE_SOURCE_DIR}/data/icons/1tracker_toolbar_icon.svg"
-            "${OCPN_DEV_PLUGIN_DATA_DIR}/1tracker_toolbar_icon.svg"
-    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-            "${CMAKE_SOURCE_DIR}/data/icons/1tracker_hero.png"
-            "${OCPN_DEV_PLUGIN_DATA_DIR}/1tracker_hero.png"
-    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-            "${CMAKE_SOURCE_DIR}/data/icons/1tracker_json_header.png"
-            "${OCPN_DEV_PLUGIN_DATA_DIR}/1tracker_json_header.png"
-    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-            "${CMAKE_SOURCE_DIR}/data/icons/1tracker_nfl_header.png"
-            "${OCPN_DEV_PLUGIN_DATA_DIR}/1tracker_nfl_header.png"
-    COMMAND /bin/sh -c "rm -f \"$ENV{HOME}/Library/Preferences/opencpn/plugins/${PKG_NAME}/toolbar_icon_\"*.svg"
-    COMMAND /bin/sh -c "rm -f \"$ENV{HOME}/Library/Preferences/opencpn/iconCacheSVG/\"*_Library_Preferences_opencpn_plugins_${PKG_NAME}_toolbar_icon_*.svg_32x32"
-    DEPENDS ${CMAKE_PROJECT_NAME}
-    COMMENT "Deploy 1tracker_pi and clear runtime toolbar SVGs and OpenCPN SVG cache"
-  )
 endif ()
 
 option(BUILD_TESTING "Build unit tests" ON)

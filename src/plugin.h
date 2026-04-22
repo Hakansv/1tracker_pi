@@ -1,10 +1,13 @@
 #pragma once
 
+#include <atomic>
 #include <filesystem>
 #include <map>
 #include <memory>
 #include <mutex>
+#include <string>
 
+#include <wx/bitmap.h>
 #include <wx/string.h>
 
 #include "ocpn_plugin.h"
@@ -54,6 +57,8 @@ private:
   void openTrackerDialog(TrackerDialogEntryMode mode, wxWindow* parent,
                          DialogParentPolicy parentPolicy,
                          const char* sourceTag);
+  std::map<std::string, tracker_pi::EndpointUiState> snapshotEndpointStatuses() const;
+  void handleDialogOpenFailure(wxWindow* parent, const std::string& message);
   void handleWindSentence(const wxString& sentence);
   void createScheduler();
   void configureAndStartScheduler();
@@ -77,9 +82,8 @@ private:
   void updateEndpointStatus(const tracker_pi::EndpointConfig& endpoint,
                             const tracker_pi::EndpointSender::Result& result);
   ToolbarState computeToolbarState() const;
-  void ensureToolbarIconAssets(const std::filesystem::path& sourcePath,
-                               const std::filesystem::path& outputDir) const;
-  void applyToolbarIcon(const std::filesystem::path& iconPath);
+  void loadToolbarTemplate();
+  wxBitmap renderToolbarBitmap(ToolbarState state) const;
   void refreshToolbarIcon();
   void logMessage(const std::string& message) const;
 
@@ -93,6 +97,11 @@ private:
   mutable std::mutex endpointStatusMutex_;
   std::map<std::string, tracker_pi::EndpointUiState> endpointStatuses_;
   bool initialized_ = false;
+  // Flips to true at the top of DeInit(). Any UI-bound work posted from other
+  // threads must bail out if this is set, since wx may dispatch queued calls
+  // after the plugin host has already destroyed us.
+  std::atomic<bool> shutdownRequested_{false};
   int toolbarToolId_ = -1;
+  std::string toolbarTemplate_;
   TrackerDialog* trackerDialog_ = nullptr;
 };

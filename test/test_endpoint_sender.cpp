@@ -200,5 +200,45 @@ int main() {
   expect(invalidBoatKeyResult.message == "NFL boat key format is invalid",
          "unexpected invalid boat key error");
 
+  // Connection-refused: exercises the !posted path in buildFailureMessage().
+  tracker_pi::EndpointConfig unreachable;
+  unreachable.name = "unreachable";
+  unreachable.url = "http://127.0.0.1:9/blackhole";
+  unreachable.timeoutSeconds = 1;
+  unreachable.headerName = "X-API-Key";
+  unreachable.headerValue = "SECRET1234";
+  const auto unreachableResult = sender.send(unreachable, "hello-body");
+  expect(!unreachableResult.success, "unreachable endpoint must fail");
+  expect(unreachableResult.httpStatus == 0,
+         "!posted path must return httpStatus=0");
+  expect(!unreachableResult.message.empty(),
+         "!posted path must surface an error message");
+
+  // MaskSecret tests — cover short/long/empty paths
+  expect(tracker_pi::EndpointSender::MaskSecret("") == "",
+         "MaskSecret(empty)");
+  expect(tracker_pi::EndpointSender::MaskSecret("ab") == "**",
+         "MaskSecret short 2-char");
+  expect(tracker_pi::EndpointSender::MaskSecret("abcd") == "****",
+         "MaskSecret short 4-char");
+  expect(tracker_pi::EndpointSender::MaskSecret("SECRET1234") == "******1234",
+         "MaskSecret long");
+
+  // RedactSensitiveText tests — cover the replacement paths
+  tracker_pi::EndpointConfig redactCfg;
+  redactCfg.headerValue = "SECRET1234";
+  const auto redacted = tracker_pi::EndpointSender::RedactSensitiveText(
+      "leaked=SECRET1234 somewhere", redactCfg);
+  expect(redacted.find("SECRET1234") == std::string::npos,
+         "RedactSensitiveText must remove header value");
+  expect(redacted.find("******1234") != std::string::npos,
+         "RedactSensitiveText must insert masked value");
+
+  tracker_pi::EndpointConfig emptyRedact;
+  const auto noop = tracker_pi::EndpointSender::RedactSensitiveText(
+      "nothing secret here", emptyRedact);
+  expect(noop == "nothing secret here",
+         "RedactSensitiveText with empty secret is a no-op");
+
   return EXIT_SUCCESS;
 }

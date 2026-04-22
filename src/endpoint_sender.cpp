@@ -119,9 +119,16 @@ EndpointSender::Result EndpointSender::send(const EndpointConfig& endpoint,
   configureTimeouts(client, endpoint);
 
   const bool posted = client.Post(request.body.data(), request.body.size());
+  if (!posted) {
+    Result result;
+    result.httpStatus = 0;
+    result.message = buildFailureMessage(client, posted, 0, std::string{}, endpoint);
+    return result;
+  }
+
   const long httpStatus = client.GetResponseCode();
   const auto responseBody = client.GetResponseBody();
-  if (posted && behavior.responseIndicatesSuccess(httpStatus, responseBody)) {
+  if (behavior.responseIndicatesSuccess(httpStatus, responseBody)) {
     return makeSuccessResult(httpStatus, responseBody, endpoint);
   }
 

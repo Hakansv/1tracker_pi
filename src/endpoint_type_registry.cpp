@@ -185,7 +185,7 @@ public:
     Json::Value root;
     std::istringstream input(responseBody);
     if (!Json::parseFromStream(builder, input, &root, &errors)) {
-      return true;
+      return false;
     }
 
     const Json::Value status = root["status"];

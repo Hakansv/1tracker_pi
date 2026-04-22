@@ -153,7 +153,9 @@ macro(late_init)
     endif ()
 
     add_library(onetracker_core STATIC EXCLUDE_FROM_ALL
+        src/atomic_file_writer.cpp
         src/config_loader.cpp
+        src/endpoint_error_summary.cpp
         src/endpoint_policy.cpp
         src/endpoint_sender.cpp
         src/endpoint_type_registry.cpp
