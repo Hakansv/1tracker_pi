@@ -9,66 +9,35 @@ eigen server.
 ## Vereisten
 
 - OpenCPN **5.6 of nieuwer**
-- Besturingssysteem: Linux, macOS of Windows
 - Internetverbinding tijdens installatie
 
 ---
 
-## Stap 1 — Catalogus-URL instellen via het configuratiebestand
+## Stap 1 — Download de plugin
 
-OpenCPN biedt in de UI geen veld voor een eigen catalogus-URL. De URL moet je
-direct in het configuratiebestand instellen.
+Kies de versie die bij jouw besturingssysteem past:
 
-### Configuratiebestand vinden
-
-De makkelijkste manier:
-
-1. Klik in de OpenCPN-werkbalk op het **?-icoon**
-2. Kies **About OpenCPN**
-3. Je ziet daar de exacte locatie van het config-bestand — klik erop om het direct te openen
-
-> **Standaardlocaties ter referentie:**
-> - macOS: `~/Library/Preferences/opencpn/opencpn.conf`
-> - Linux: `~/.opencpn/opencpn.conf`
-> - Windows: `%APPDATA%\opencpn\opencpn.ini`
-
-> **Let op:** Volg de stappen exact in deze volgorde. OpenCPN moet volledig afgesloten zijn voordat je het configuratiebestand aanpast — anders overschrijft OpenCPN jouw wijzigingen bij het afsluiten en werkt het niet.
-
-### Regels toevoegen
-
-1. **Sluit OpenCPN volledig af** (niet alleen minimaliseren)
-2. Open het configuratiebestand in een teksteditor
-3. Zoek de sectie `[PlugIns]` — als die er niet is, voeg hem toe onderaan
-4. Zorg dat de sectie er zo uitziet:
-
-```ini
-[PlugIns]
-CatalogExpert=1
-UpdateURL=https://dl.cloudsmith.io/public/pa2wlt/1tracker-alpha/raw/names/ocpn-plugins/versions/latest/ocpn-plugins.xml
-```
-
-5. Sla het bestand op
+| Besturingssysteem | Download |
+|---|---|
+| **macOS** (Apple Silicon én Intel) | [1tracker-0.1.0_darwin-universal.tar.gz](https://dl.cloudsmith.io/public/pa2wlt/1tracker-alpha/raw/names/1tracker-0.1-darwin-wx32-universal-10.15-tarball/versions/0.1.0+452.5923a13/1tracker-0.1.0+452.5923a13_darwin-wx32-10.15-arm64-x86_64.tar.gz) |
+| **Windows** | [1tracker-0.1.0_windows.tar.gz](https://dl.cloudsmith.io/public/pa2wlt/1tracker-alpha/raw/names/1tracker-0.1-msvc-wx32-10-tarball/versions/0.1.0+21.93891e0/1tracker-0.1.0+21.93891e0_msvc-wx32-10-x86.tar.gz) |
+| **Linux** (Debian/Ubuntu 64-bit) | [1tracker-0.1.0_debian12-x86_64.tar.gz](https://dl.cloudsmith.io/public/pa2wlt/1tracker-alpha/raw/names/1tracker-0.1-debian-x86_64-12-tarball/versions/0.1.0+599.db96f13/1tracker-0.1.0+599.db96f13_debian-x86_64-12-x86_64.tar.gz) |
+| **Android** (64-bit, meeste telefoons) | [1tracker-0.1.0_android-arm64.tar.gz](https://dl.cloudsmith.io/public/pa2wlt/1tracker-alpha/raw/names/1tracker-0.1-android-arm64-A64-16-tarball/versions/0.1.0+600.db96f13/1tracker-0.1.0+600.db96f13_android-arm64-16-arm64.tar.gz) |
+| **Android** (32-bit, oudere telefoons) | [1tracker-0.1.0_android-armhf.tar.gz](https://dl.cloudsmith.io/public/pa2wlt/1tracker-alpha/raw/names/1tracker-0.1-android-armhf-A32-16-tarball/versions/0.1.0+594.db96f13/1tracker-0.1.0+594.db96f13_android-armhf-16-armhf.tar.gz) |
 
 ---
 
-## Stap 2 — Catalogus bijwerken
+## Stap 2 — Installeer de plugin
 
-1. Open OpenCPN opnieuw
+1. Open OpenCPN
 2. Ga naar **Opties** → tabblad **Plugins**
-3. Klik op **Catalogus bijwerken** (*Update catalog*)
-4. OpenCPN laadt nu de 1tracker-catalogus
+3. Klik op **Installeer plugin uit bestand** (of *Install plugin from file*)
+4. Selecteer het gedownloade `.tar.gz` bestand
+5. Herstart OpenCPN wanneer hierom gevraagd wordt
 
 ---
 
-## Stap 3 — Plugin installeren
-
-1. Zoek in de pluginlijst naar **1tracker**
-2. Klik op **Installeren**
-3. Herstart OpenCPN wanneer hierom gevraagd wordt
-
----
-
-## Stap 4 — Plugin activeren
+## Stap 3 — Plugin activeren
 
 1. Ga opnieuw naar **Opties** → **Plugins**
 2. Zoek **1tracker** in de lijst en klik op **Inschakelen** (*Enable*)
@@ -76,7 +45,7 @@ UpdateURL=https://dl.cloudsmith.io/public/pa2wlt/1tracker-alpha/raw/names/ocpn-p
 
 ---
 
-## Stap 5 — Configureren
+## Stap 4 — Configureren
 
 Na het herstarten verschijnt een nieuw icoon in de werkbalk.
 
