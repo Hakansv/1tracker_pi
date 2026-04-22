@@ -42,7 +42,7 @@ De makkelijkste manier:
 ```ini
 [PlugIns]
 CatalogExpert=1
-UpdateURL=https://dl.cloudsmith.io/public/pa2wlt/1tracker-alpha/raw/files/ocpn-plugins.xml
+UpdateURL=https://dl.cloudsmith.io/public/pa2wlt/1tracker-alpha/raw/names/ocpn-plugins/versions/latest/ocpn-plugins.xml
 ```
 
 5. Sla het bestand op
