@@ -77,10 +77,6 @@ The toolbar icon turns green once the first position is sent.
 | 🟢 Green | At least one tracker is sending successfully |
 | 🔴 Red | At least one active tracker has an error |
 
-For the full field reference (send interval, min distance, include wind, etc.),
-payload format, troubleshooting, and the config-file location, see the
-[full user manual](manual.md).
-
 ---
 
 ## Step 5 — Add another tracker (optional)
