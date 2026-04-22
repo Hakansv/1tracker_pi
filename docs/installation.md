@@ -1,8 +1,16 @@
-# 1tracker_pi — Installation Guide (beta testers)
+# 1tracker_pi — Beta Tester Installation Guide
 
 Thank you for testing **1tracker_pi**, an OpenCPN plugin that sends your boat
-position (and optionally wind data) to HTTP endpoints — such as NoForeignLand or
-your own server.
+position (and optionally apparent wind) to one or more tracking services such
+as NoForeignLand or your own HTTP server.
+
+This guide covers the **beta-only install procedure** (installing a downloaded
+`.tar.gz` by hand). Once the plugin is in the OpenCPN Plugin Master, the regular
+install procedure will differ.
+
+For everything *after* install — configuring trackers, field reference,
+troubleshooting, configuration-file location — see the
+[full user manual](manual.md).
 
 ---
 
@@ -43,95 +51,50 @@ Pick the build that matches your operating system:
 2. Find **1tracker** in the list and click **Enable**
 3. Click **OK** and restart OpenCPN
 
+After restarting, a new **1tracker** icon appears in the toolbar.
+
 ---
 
 ## Step 4 — Configure for NoForeignLand
 
-After restarting OpenCPN a new **1tracker** icon appears in the toolbar.
+To get started quickly, add one NoForeignLand tracker:
 
-### The toolbar icon
+1. Get your **Boat API key** from NoForeignLand — log in at
+   [noforeignland.com](https://www.noforeignland.com/) and open
+   [Boat Tracking Settings](https://www.noforeignland.com/map/settings/boat/tracking/api)
+2. Click the **1tracker** toolbar icon to open the dialog
+3. Click **Add tracker**, then the gear icon to open the detail editor
+4. Set **Type** to `noforeignland`, paste the boat API key into
+   **My NFL boat key**, tick **Enabled**, click **OK**
 
-The icon doubles as a status indicator — its color reflects the result of the
-most recent send attempt across all enabled endpoints:
+The toolbar icon turns green once the first position is sent.
+
+### Toolbar icon at a glance
 
 | Color | Meaning |
 |---|---|
-| 🟢 Green | Last send succeeded |
-| 🔴 Red | Last send failed |
-| ⚪ Grey | Inactive or nothing sent yet |
+| ⚪ Grey | Plugin enabled but no GPS fix yet, or all trackers disabled |
+| 🟢 Green | At least one tracker is sending successfully |
+| 🔴 Red | At least one active tracker has an error |
 
-Click the icon at any time to open the configuration window.
-
-### Get your NoForeignLand boat key
-
-Before configuring the endpoint you need a boat key from NoForeignLand:
-
-1. Log in at [noforeignland.com](https://www.noforeignland.com/)
-2. Go to **Boat Tracking Settings** → **API Key**
-3. Create (or copy) the key for the boat you want to track
-
-### Add the NoForeignLand endpoint
-
-1. Click the **1tracker icon** in the toolbar to open the configuration window
-2. Click **Add endpoint**
-3. Fill in the fields:
-
-| Field | Value |
-|---|---|
-| **Name** | Free choice, e.g. `nfl-my-boat` |
-| **Type** | `noforeignland` |
-| **My NFL boat key** | The API key you copied from NoForeignLand |
-| **Send interval** | Minutes between sends (minimum 10, default 15) |
-
-The URL, timeout and header name are filled in automatically for the
-NoForeignLand type — you do not need to change them.
-
-4. Set the endpoint toggle to **On**
-5. Click **Save**
-
-Your position is now being sent to NoForeignLand on every interval tick while
-OpenCPN is running and has a GPS fix.
+For the full field reference (send interval, min distance, include wind, etc.),
+payload format, troubleshooting, and the config-file location, see the
+[full user manual](manual.md).
 
 ---
 
-## Step 5 — Configure another endpoint (optional)
+## Step 5 — Add another tracker (optional)
 
-You can add as many endpoints as you like; each one is sent to independently
-with its own type, URL, credentials, and interval. Typical reasons to add more
-endpoints:
+You can add multiple trackers — each runs on its own schedule with its own
+type, URL and credentials. Typical uses:
 
-- Track on a **second NoForeignLand boat** (e.g. a tender or a shared account)
-- Send the same fixes to **your own server** or a third-party service that
-  accepts JSON over HTTP
-- Mirror traffic to a **test endpoint** while you are experimenting
+- A **second NoForeignLand boat** (tender, shared account)
+- Your **own server** or a third-party service that accepts JSON over HTTP
+- A **test endpoint** while you are experimenting
 
-### Add another NoForeignLand endpoint
-
-Repeat Step 4 with a different name and a different boat key. Both endpoints
-will run on their own schedules.
-
-### Add a generic JSON endpoint
-
-1. Open the configuration window from the toolbar icon
-2. Click **Add endpoint**
-3. Fill in:
-
-| Field | Value |
-|---|---|
-| **Name** | Free choice, e.g. `my-server` |
-| **Type** | `http_json_with_header_key` |
-| **URL** | The full HTTPS URL that will receive the JSON payload |
-| **Header name** | Name of the auth header (e.g. `Authorization`, `X-API-Key`) |
-| **Header value** | The token or key the server expects |
-| **Send interval** | Minutes between sends (default 1) |
-| **Timeout** | Request timeout in seconds |
-
-4. Set the toggle to **On**
-5. Click **Save**
-
-Every enabled endpoint is sent to on its own schedule. The toolbar icon color
-reflects the worst result across them all, so a single failing endpoint will
-turn the icon red even if the others succeeded.
+Click **Add tracker** again and pick either `noforeignland` or
+`http_json_with_header_key`. Full field descriptions for each type are in the
+[full user manual](manual.md#adding-a-tracker).
 
 ---
 
