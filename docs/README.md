@@ -14,7 +14,5 @@ Current build and status information lives in the root [README.md](../README.md)
   Local copy of the noforeignland tracking API documentation.
 - `nfl-tracking-api.pdf`
   PDF version of the same NFL API documentation.
-- `release-toolbar-icons.md`
-  Reliable workflow for toolbar icon changes, deploys, and cache refreshes.
 - `todo.md`
   Ongoing and completed notes for the plugin.

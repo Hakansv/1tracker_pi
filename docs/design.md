@@ -237,8 +237,8 @@ This component keeps file/path/bitmap mechanics out of the main plugin and
 dialog logic.
 
 Assets live in `data/icons/`. Despite the folder name, it holds both toolbar
-icons (SVG) and branding/header artwork (PNG) — see
-`docs/release-toolbar-icons.md` for the toolbar icon flow specifically.
+icons (SVG) and branding/header artwork (PNG). The toolbar icon flow is
+described in more detail under "Toolbar Status And Icons" below.
 
 ### 10. Tests
 
@@ -435,8 +435,37 @@ Toolbar status is derived from the known endpoint results:
 - green if enabled endpoints are successful
 - neutral if there is no successful or definitive status yet
 
-The operational release and development flow for this is documented in
-`docs/release-toolbar-icons.md`.
+### Packaging
+
+Every release package must include:
+
+- the plugin binary (`1tracker_pi.dylib` / `1tracker_pi.dll` /
+  `lib1tracker_pi.so`)
+- `data/icons/1tracker_toolbar_icon.svg` — the template SVG, containing the
+  placeholder tokens `__MARKER_FILL__`, `__MARKER_STROKE__`, `__BOAT_FILL__`
+
+Install paths per platform:
+
+- macOS: `Contents/SharedSupport/plugins/1tracker_pi/data/icons/`
+- Linux / Windows / Android: `share/opencpn/plugins/1tracker_pi/data/icons/`
+
+### Diagnostics
+
+If the toolbar button is missing or the status colors are wrong:
+
+1. Confirm the template is deployed:
+   - macOS: `~/Library/Application Support/OpenCPN/Contents/SharedSupport/plugins/1tracker_pi/data/icons/1tracker_toolbar_icon.svg`
+   - Windows: `%LOCALAPPDATA%\opencpn\plugins\1tracker_pi\data\icons\1tracker_toolbar_icon.svg`
+2. In `opencpn.log`, look for these plugin log lines:
+   - `1tracker_pi: loaded toolbar template from <path> (<N> bytes)` — template
+     load succeeded.
+   - `1tracker_pi: toolbar template not found for 1tracker_toolbar_icon.svg` —
+     asset missing from the install.
+   - `1tracker_pi: toolbar tool id=<N>, template_bytes=<N>` — `InsertPlugInTool`
+     was called. An id of `-1` means registration failed.
+3. Verify the template still contains the three placeholder tokens
+   (`__MARKER_FILL__`, `__MARKER_STROKE__`, `__BOAT_FILL__`). Without them
+   the variants all render identically to the template's literal colors.
 
 ## Thread Model
 
