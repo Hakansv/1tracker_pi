@@ -8,7 +8,19 @@ if [ -z "$CLOUDSMITH_API_KEY" ]; then
     exit 0
 fi
 
-REPO="${CLOUDSMITH_REPO:-pa2wlt/1tracker-alpha}"
+# Pick target repo by git tag (matches Shipdriver's Metadata.cmake routing):
+# tag containing "beta" or "rc" -> beta repo, other tags -> prod, no tag -> alpha
+if [ -n "$CLOUDSMITH_REPO" ]; then
+    REPO="$CLOUDSMITH_REPO"
+elif [ -n "$CIRCLE_TAG" ]; then
+    lc_tag="$(echo "$CIRCLE_TAG" | tr '[:upper:]' '[:lower:]')"
+    case "$lc_tag" in
+        *beta*|*rc*) REPO="pa2wlt/1tracker-beta" ;;
+        *)           REPO="pa2wlt/1tracker-prod" ;;
+    esac
+else
+    REPO="pa2wlt/1tracker-alpha"
+fi
 CATALOG_FILE="/tmp/ocpn-plugins.xml"
 
 echo "Fetching XML metadata files from Cloudsmith repo: $REPO"

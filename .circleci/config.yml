@@ -301,7 +301,7 @@ jobs:
     steps:
       - checkout
       - run: pip install -q cloudsmith-cli
-      - run: CLOUDSMITH_REPO=pa2wlt/1tracker-alpha ci/update-catalog.sh
+      - run: ci/update-catalog.sh
 
 std-filters: &std-filters
   filters:
@@ -309,6 +309,8 @@ std-filters: &std-filters
       ignore:
         - tmp
         - /tmp-.*/
+    tags:
+      only: /.*/
 
 workflows:
   build_all:
@@ -354,4 +356,11 @@ workflows:
 
   catalog:
     jobs:
-      - update-catalog
+      - update-catalog:
+          filters:
+            branches:
+              ignore:
+                - tmp
+                - /tmp-.*/
+            tags:
+              only: /.*/
