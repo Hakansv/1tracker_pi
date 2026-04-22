@@ -14,26 +14,49 @@ eigen server.
 
 ---
 
-## Stap 1 — Alpha-catalogus toevoegen
+## Stap 1 — Aangepaste catalogus inschakelen
 
-Omdat de plugin nog niet officieel is opgenomen in de OpenCPN-catalogus, moet je
-eenmalig een extra catalogus-URL toevoegen.
+OpenCPN blokkeert standaard het toevoegen van externe catalogi. Dit moet je eenmalig
+handmatig inschakelen door een regel toe te voegen aan het configuratiebestand.
 
-1. Open OpenCPN
-2. Ga naar **Opties** → tabblad **Plugins**
-3. Klik op de knop **Catalogus bijwerken** (of *Update catalog*)
-4. Zoek de instelling voor een **aangepaste catalogus-URL** (*Advanced* of *Custom catalog URL*)
-5. Voeg de volgende URL toe:
+### Configuratiebestand openen
+
+| Besturingssysteem | Locatie |
+|---|---|
+| **macOS** | `~/Library/Preferences/opencpn/opencpn.conf` |
+| **Linux** | `~/.opencpn/opencpn.conf` |
+| **Windows** | `%APPDATA%\opencpn\opencpn.ini` |
+
+1. **Sluit OpenCPN volledig af**
+2. Open het configuratiebestand in een teksteditor
+3. Zoek de sectie `[PlugIns]` (als die er niet is, voeg hem toe onderaan)
+4. Voeg deze regel toe onder `[PlugIns]`:
+
+```
+CatalogExpert=1
+```
+
+5. Sla het bestand op en **open OpenCPN opnieuw**
+
+---
+
+## Stap 2 — Alpha-catalogus toevoegen
+
+Nu de expertmodus is ingeschakeld:
+
+1. Ga naar **Opties** → tabblad **Plugins**
+2. Klik op **Catalogus bijwerken** (*Update catalog*)
+3. Er verschijnt nu een veld voor een **aangepaste URL** — voer in:
 
 ```
 https://dl.cloudsmith.io/public/pa2wlt/1tracker-alpha/raw/files/ocpn-plugins.xml
 ```
 
-6. Klik op **OK** en daarna opnieuw op **Catalogus bijwerken**
+4. Klik op **OK** en daarna opnieuw op **Catalogus bijwerken**
 
 ---
 
-## Stap 2 — Plugin installeren
+## Stap 3 — Plugin installeren
 
 1. Zoek in de pluginlijst naar **1tracker**
 2. Klik op **Installeren**
@@ -41,7 +64,7 @@ https://dl.cloudsmith.io/public/pa2wlt/1tracker-alpha/raw/files/ocpn-plugins.xml
 
 ---
 
-## Stap 3 — Plugin activeren
+## Stap 4 — Plugin activeren
 
 1. Ga opnieuw naar **Opties** → **Plugins**
 2. Zoek **1tracker** in de lijst en klik op **Inschakelen** (*Enable*)
@@ -49,7 +72,7 @@ https://dl.cloudsmith.io/public/pa2wlt/1tracker-alpha/raw/files/ocpn-plugins.xml
 
 ---
 
-## Stap 4 — Configureren
+## Stap 5 — Configureren
 
 Na het herstarten verschijnt een nieuw icoon in de werkbalk.
 
