@@ -125,6 +125,16 @@ bool Scheduler::isEndpointDue(
   return false;
 }
 
+std::optional<std::pair<double, double>>
+Scheduler::lookupLastSuccessfulPosition(const std::string& key) const {
+  std::lock_guard<std::mutex> lock(mutex_);
+  const auto it = lastSuccessfulPositions_.find(key);
+  if (it == lastSuccessfulPositions_.end()) {
+    return std::nullopt;
+  }
+  return it->second;
+}
+
 bool Scheduler::shouldSkipForMinDistance(const Snapshot& snapshot,
                                          const EndpointConfig& endpoint,
                                          const std::string& key) const {
@@ -137,21 +147,13 @@ bool Scheduler::shouldSkipForMinDistance(const Snapshot& snapshot,
     return false;
   }
 
-  std::optional<std::pair<double, double>> lastSuccessfulPosition;
-  {
-    std::lock_guard<std::mutex> lock(mutex_);
-    const auto it = lastSuccessfulPositions_.find(key);
-    if (it != lastSuccessfulPositions_.end()) {
-      lastSuccessfulPosition = it->second;
-    }
-  }
-
-  if (!lastSuccessfulPosition.has_value()) {
+  const auto lastSuccessful = lookupLastSuccessfulPosition(key);
+  if (!lastSuccessful.has_value()) {
     return false;
   }
 
   const double distanceMeters = haversineDistanceMeters(
-      lastSuccessfulPosition->first, lastSuccessfulPosition->second, *snapshot.lat,
+      lastSuccessful->first, lastSuccessful->second, *snapshot.lat,
       *snapshot.lon);
   if (distanceMeters >= static_cast<double>(minDistanceMeters)) {
     return false;

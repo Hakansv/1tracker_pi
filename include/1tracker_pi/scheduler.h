@@ -31,17 +31,20 @@ public:
   void start();
   void stop();
   bool isRunning() const;
+  using Clock = std::chrono::steady_clock;
   std::size_t tick();
+  // Advances the scheduler as if `now` were the current moment. Exposed so
+  // tests can drive sends without sleeping; also reused by tick().
+  std::size_t tickAt(Clock::time_point now);
 
 private:
-  using Clock = std::chrono::steady_clock;
-
-  std::size_t tickAt(Clock::time_point now);
   bool isEndpointDue(const std::string& key, Clock::time_point now,
                      const std::map<std::string, Clock::time_point>& nextSendTimesCopy,
                      const EndpointConfig& endpoint) const;
   bool shouldSkipForMinDistance(const Snapshot& snapshot, const EndpointConfig& endpoint,
                                 const std::string& key) const;
+  std::optional<std::pair<double, double>> lookupLastSuccessfulPosition(
+      const std::string& key) const;
   void logSendStart(const EndpointConfig& endpoint) const;
   void logMinDistanceSkip(const EndpointConfig& endpoint, double distanceMeters,
                           int minDistanceMeters) const;

@@ -28,6 +28,7 @@
 #include <wx/textctrl.h>
 #include <wx/window.h>
 
+#include "1tracker_pi/endpoint_error_summary.h"
 #include "1tracker_pi/endpoint_policy.h"
 #include "1tracker_pi/endpoint_type_behavior.h"
 #include "1tracker_pi/nfl_settings.h"
@@ -50,61 +51,7 @@ constexpr int kJsonDetailHeaderWidth = 281;
 constexpr int kJsonDetailHeaderHeight = 75;
 constexpr int kNflDetailHeaderWidth = 281;
 
-bool containsText(const std::string& text, const std::string& needle) {
-  return text.find(needle) != std::string::npos;
-}
-
-std::string summarizeEndpointError(const tracker_pi::EndpointConfig& endpoint,
-                                   const std::string& rawError) {
-  if (rawError.empty()) {
-    return "";
-  }
-
-  if (containsText(rawError, "an active API key was not provided")) {
-    return tracker_pi::isNoForeignLandType(endpoint.type)
-               ? "Your NFL boat key is missing or invalid."
-               : "The API key was not accepted by the server.";
-  }
-
-  if (containsText(rawError, "Invalid or expired token")) {
-    return "The authorization token is invalid or expired.";
-  }
-
-  if (containsText(rawError, "Could not resolve host")) {
-    return "The server name could not be resolved.";
-  }
-
-  if (containsText(rawError, "Failed to connect") ||
-      containsText(rawError, "Connection refused")) {
-    return "Could not connect to the server.";
-  }
-
-  if (containsText(rawError, "timed out")) {
-    return "The server took too long to respond.";
-  }
-
-  if (containsText(rawError, "HTTP 401")) {
-    return "The server rejected the credentials.";
-  }
-
-  if (containsText(rawError, "HTTP 403")) {
-    return "The server refused this request.";
-  }
-
-  if (containsText(rawError, "HTTP 404")) {
-    return "The tracking URL could not be found.";
-  }
-
-  if (containsText(rawError, "HTTP 200")) {
-    return "The server responded, but rejected the tracking data.";
-  }
-
-  if (containsText(rawError, "HTTP ")) {
-    return "The server returned an error while processing the tracking request.";
-  }
-
-  return "Tracking could not be sent. Check the technical details below.";
-}
+using tracker_pi::summarizeEndpointError;
 
 tracker_pi::EndpointConfig makeDefaultEndpoint(std::size_t index) {
   tracker_pi::EndpointConfig endpoint;
@@ -843,6 +790,20 @@ private:
     target->SetFocus();
   }
 
+  struct TabHop {
+    wxWindow* target = nullptr;
+    bool fromKeyboard = false;
+  };
+
+  bool tryTabHop(const TabHop& hop) {
+    if (hop.target == nullptr || !hop.target->IsEnabled() ||
+        !hop.target->IsShown()) {
+      return false;
+    }
+    focusTabTarget(hop.target, hop.fromKeyboard);
+    return true;
+  }
+
   void bindTabNavigation(wxWindow* source, wxWindow* forwardTarget,
                          wxWindow* backwardTarget = nullptr,
                          bool forwardFromKeyboard = false,
@@ -851,33 +812,18 @@ private:
       return;
     }
 
-    source->Bind(wxEVT_KEY_DOWN, [this, forwardTarget, backwardTarget,
-                                  forwardFromKeyboard,
-                                  backwardFromKeyboard](wxKeyEvent& event) {
+    const TabHop forwardHop{forwardTarget, forwardFromKeyboard};
+    const TabHop backwardHop{backwardTarget, backwardFromKeyboard};
+
+    source->Bind(wxEVT_KEY_DOWN, [this, forwardHop, backwardHop](wxKeyEvent& event) {
       if (event.GetKeyCode() != WXK_TAB) {
         event.Skip();
         return;
       }
-
-      if (event.ShiftDown()) {
-        if (backwardTarget != nullptr) {
-          if (!backwardTarget->IsEnabled() || !backwardTarget->IsShown()) {
-            event.Skip();
-            return;
-          }
-          focusTabTarget(backwardTarget, backwardFromKeyboard);
-          return;
-        }
-      } else if (forwardTarget != nullptr) {
-        if (!forwardTarget->IsEnabled() || !forwardTarget->IsShown()) {
-          event.Skip();
-          return;
-        }
-        focusTabTarget(forwardTarget, forwardFromKeyboard);
-        return;
+      const TabHop& hop = event.ShiftDown() ? backwardHop : forwardHop;
+      if (!tryTabHop(hop)) {
+        event.Skip();
       }
-
-      event.Skip();
     });
   }
 
@@ -1300,35 +1246,11 @@ private:
       return;
     }
 
-    const auto currentEndpointError = [this](
-                                          const tracker_pi::EndpointConfig* current)
-        -> std::tuple<wxString, wxString, bool> {
-      if (current == nullptr) {
-        return {"", "", false};
-      }
-
-      const auto statusIt =
-          endpointStatuses_.find(tracker_pi::endpointStateKey(*current));
-      const bool hasError =
-          statusIt != endpointStatuses_.end() &&
-          !statusIt->second.lastErrorMessage.empty();
-      const wxString lastCall =
-          statusIt != endpointStatuses_.end()
-              ? wxString::FromUTF8(statusIt->second.lastSentLocalTime.c_str())
-              : "";
-      return {hasError ? wxString::FromUTF8(statusIt->second.lastErrorMessage.c_str())
-                       : "",
-              lastCall, hasError};
-    };
-
-    const auto [errorText, lastCallText, hasError] = currentEndpointError(endpoint);
+    const auto state =
+        tracker_pi::computeEndpointErrorUiState(endpoint, endpointStatuses_);
     endpointErrorDetailsExpanded_ = false;
-    const int errorWrapWidth =
-        std::max(kDetailFieldWidth,
-                 detailPanel_ != nullptr ? detailPanel_->GetClientSize().GetWidth() - 8
-                                         : kDetailFieldWidth);
 
-    if (!hasError || endpoint == nullptr) {
+    if (!state.visible) {
       endpointErrorSummaryText_->SetLabel("");
       endpointErrorMetaText_->SetLabel("");
       endpointErrorText_->SetLabel("");
@@ -1337,17 +1259,21 @@ private:
       endpointErrorDetailsToggle_->Hide();
       endpointErrorPanel_->Hide();
     } else {
-      endpointErrorSummaryText_->SetLabel(wxString::FromUTF8(
-          summarizeEndpointError(*endpoint, errorText.ToStdString()).c_str()));
+      const int errorWrapWidth =
+          std::max(kDetailFieldWidth,
+                   detailPanel_ != nullptr
+                       ? detailPanel_->GetClientSize().GetWidth() - 8
+                       : kDetailFieldWidth);
+      endpointErrorSummaryText_->SetLabel(wxString::FromUTF8(state.summary.c_str()));
       endpointErrorSummaryText_->Wrap(errorWrapWidth);
-      if (!lastCallText.empty()) {
-        endpointErrorMetaText_->SetLabel("Last call: " + lastCallText);
+      if (!state.metaText.empty()) {
+        endpointErrorMetaText_->SetLabel(wxString::FromUTF8(state.metaText.c_str()));
         endpointErrorMetaText_->Show();
       } else {
         endpointErrorMetaText_->SetLabel("");
         endpointErrorMetaText_->Hide();
       }
-      endpointErrorText_->SetLabel(errorText);
+      endpointErrorText_->SetLabel(wxString::FromUTF8(state.details.c_str()));
       endpointErrorText_->Wrap(kDetailFieldWidth);
       endpointErrorText_->Hide();
       endpointErrorDetailsToggle_->SetLabel("Show technical details");
