@@ -51,6 +51,17 @@ set(SRC
 set(PKG_API_LIB api-18)
 
 macro(late_init)
+  # wxWidgets discovery lives here, not in cmake/PluginLibs.cmake or
+  # cmake/MacosWxwidgets.cmake, because the template modules assume:
+  #   - REQUIRED find (we need non-REQUIRED so flatpak host configure passes)
+  #   - packaging-only invocation (we build and run tests from dev builds with
+  #     BUILD_TYPE="", where PluginLibs.cmake is never included)
+  # and don't cover:
+  #   - homebrew wx@3.2 preference for Apple Silicon dev machines
+  #   - the /Applications/OpenCPN.app/Contents/Frameworks override that lets
+  #     dev builds link against the wx bundled in the installed OpenCPN.app
+  # Moving any of this into cmake/* would pollute the template directory.
+
   # macOS: prefer homebrew wx3.2 for local dev builds
   if (APPLE AND EXISTS "/opt/homebrew/opt/wxwidgets@3.2/bin/wx-config-3.2")
     set(wxWidgets_CONFIG_EXECUTABLE
@@ -58,7 +69,6 @@ macro(late_init)
         CACHE FILEPATH "wx-config executable" FORCE)
   endif ()
 
-  # Find wxWidgets — not REQUIRED so configure succeeds in flatpak host environment
   find_package(wxWidgets COMPONENTS base core net xml)
   if (wxWidgets_FOUND)
     include(${wxWidgets_USE_FILE})
