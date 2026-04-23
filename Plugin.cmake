@@ -51,28 +51,6 @@ set(SRC
 set(PKG_API_LIB api-18)
 
 macro(late_init)
-  # Map plugin variables to the names expected by plugin_metadata.h.in
-  # Collapse multi-line description to a single line for the C string literal
-  string(REPLACE "\n" " " _desc "${PKG_DESCRIPTION}")
-  string(STRIP "${_desc}" _desc)
-  set(ONETRACKER_PLUGIN_SUMMARY "${PKG_SUMMARY}")
-  set(ONETRACKER_PLUGIN_DESCRIPTION "${_desc}")
-  set(ONETRACKER_PLUGIN_COMMON_NAME "${DISPLAY_NAME}")
-  set(ONETRACKER_PLUGIN_PACKAGE_NAME "${PKG_NAME}")
-  set(ONETRACKER_PLUGIN_SOURCE_URL "${PKG_HOMEPAGE}")
-  set(ONETRACKER_PLUGIN_LICENSE "GPL-2.0-or-later")
-
-  configure_file(
-    "${CMAKE_SOURCE_DIR}/cmake/in-files/version.h.in"
-    "${CMAKE_BINARY_DIR}/generated/${PKG_NAME}/version.h"
-    @ONLY
-  )
-  configure_file(
-    "${CMAKE_SOURCE_DIR}/cmake/in-files/plugin_metadata.h.in"
-    "${CMAKE_BINARY_DIR}/generated/${PKG_NAME}/plugin_metadata.h"
-    @ONLY
-  )
-
   # macOS: prefer homebrew wx3.2 for local dev builds
   if (APPLE AND EXISTS "/opt/homebrew/opt/wxwidgets@3.2/bin/wx-config-3.2")
     set(wxWidgets_CONFIG_EXECUTABLE
@@ -105,31 +83,8 @@ macro(late_init)
     endif ()
   endif ()
 
-  # Set up libcurl interface target
-  if (NOT TARGET ocpn::libcurl)
-    add_library(ocpn_libcurl_if INTERFACE)
-    add_library(ocpn::libcurl ALIAS ocpn_libcurl_if)
-    if (WIN32)
-      find_package(CURL QUIET)
-      if (CURL_FOUND)
-        target_link_libraries(ocpn_libcurl_if INTERFACE CURL::libcurl)
-      endif ()
-    else ()
-      find_library(SYSTEM_LIBCURL NAMES curl libcurl)
-      find_path(SYSTEM_CURL_INCLUDE_DIR NAMES curl/curl.h)
-      if (SYSTEM_LIBCURL)
-        target_link_libraries(ocpn_libcurl_if INTERFACE "${SYSTEM_LIBCURL}")
-      endif ()
-      if (SYSTEM_CURL_INCLUDE_DIR)
-        target_include_directories(ocpn_libcurl_if INTERFACE
-                                   "${SYSTEM_CURL_INCLUDE_DIR}")
-      endif ()
-    endif ()
-  endif ()
-
   # Plugin target base configuration (always runs)
   target_include_directories(${PACKAGE_NAME} PRIVATE
-      "${CMAKE_BINARY_DIR}/generated"
       "${CMAKE_SOURCE_DIR}/src"
       "${CMAKE_SOURCE_DIR}/include"
       "${CMAKE_SOURCE_DIR}/opencpn-libs/jsoncpp/include"
@@ -144,43 +99,24 @@ macro(late_init)
         "-Wl,--allow-shlib-undefined")
   endif ()
 
-  # Build core logic and link everything — only when wx is available
-  if (wxWidgets_FOUND)
-    if (NOT TARGET ocpn::jsoncpp)
-      add_subdirectory("${CMAKE_SOURCE_DIR}/opencpn-libs/jsoncpp")
-    endif ()
-    if (NOT TARGET ocpn::wxcurl)
-      add_subdirectory("${CMAKE_SOURCE_DIR}/opencpn-libs/wxcurl")
-    endif ()
+endmacro ()
 
-    add_library(onetracker_core STATIC EXCLUDE_FROM_ALL
-        src/atomic_file_writer.cpp
-        src/config_loader.cpp
-        src/endpoint_error_summary.cpp
-        src/endpoint_policy.cpp
-        src/endpoint_sender.cpp
-        src/endpoint_type_registry.cpp
-        src/payload_builder.cpp
-        src/scheduler.cpp
-        src/state_store.cpp
-    )
-    target_include_directories(onetracker_core PUBLIC
-        "${CMAKE_SOURCE_DIR}/include"
-    )
-    target_compile_features(onetracker_core PUBLIC cxx_std_17)
-    target_link_libraries(onetracker_core PUBLIC
-        ocpn::jsoncpp
-        ocpn::wxcurl
-        ${wxWidgets_LIBRARIES}
-    )
+macro(add_plugin_libraries)
+  add_subdirectory("${CMAKE_SOURCE_DIR}/libs/plugin_metadata")
+  target_link_libraries(${PACKAGE_NAME} PRIVATE plugin_metadata_headers)
+
+  # Skip gracefully when wx is unavailable (e.g. flatpak host configure pass).
+  # guarded with if/else instead of return() since return() in a macro returns
+  # from the caller scope (the whole CMakeLists.txt), aborting everything after.
+  if (wxWidgets_FOUND)
+    add_subdirectory("${CMAKE_SOURCE_DIR}/opencpn-libs/jsoncpp")
+    add_subdirectory("${CMAKE_SOURCE_DIR}/opencpn-libs/curl")
+    add_subdirectory("${CMAKE_SOURCE_DIR}/opencpn-libs/wxcurl")
+    add_subdirectory("${CMAKE_SOURCE_DIR}/libs/onetracker_core")
 
     target_link_libraries(${PACKAGE_NAME} PRIVATE
         onetracker_core
         ${wxWidgets_LIBRARIES}
     )
   endif ()
-endmacro ()
-
-macro(add_plugin_libraries)
-  # All libraries and the onetracker_core static lib are set up in late_init()
 endmacro ()

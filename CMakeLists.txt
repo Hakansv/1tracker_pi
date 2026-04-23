@@ -49,6 +49,10 @@ if (COMMAND late_init)
   late_init()
 endif ()
 
+if (COMMAND add_plugin_libraries)
+  add_plugin_libraries()
+endif ()
+
 # Configure the flatpak manifest
 file(
   GLOB manifest ${PROJECT_SOURCE_DIR}/flatpak/org.opencpn.OpenCPN.Plugin.*.yaml
@@ -124,9 +128,6 @@ if (NOT ${BUILD_TYPE} STREQUAL "flatpak")
     include(AndroidLibs)
   endif ()
   include(PluginLocalization)
-  if (COMMAND add_plugin_libraries)
-    add_plugin_libraries()
-  endif ()
 endif ()
 
 configure_file(

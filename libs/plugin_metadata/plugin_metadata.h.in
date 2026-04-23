@@ -11,13 +11,4 @@ inline constexpr const char kPluginDescription[] =
 inline constexpr const char kPluginCommonName[] =
     "@ONETRACKER_PLUGIN_COMMON_NAME@";
 
-inline constexpr const char kPluginPackageName[] =
-    "@ONETRACKER_PLUGIN_PACKAGE_NAME@";
-
-inline constexpr const char kPluginSourceUrl[] =
-    "@ONETRACKER_PLUGIN_SOURCE_URL@";
-
-inline constexpr const char kPluginLicense[] =
-    "@ONETRACKER_PLUGIN_LICENSE@";
-
 }  // namespace tracker_pi
