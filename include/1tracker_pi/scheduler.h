@@ -69,10 +69,15 @@ private:
   LogFn logFn_;
   ResultFn resultFn_;
 
-  // See StateStore::mutex_ for why this is a shared_mutex instead of
-  // std::mutex. The condition_variable is gone too — it uses std::mutex
-  // internally and has the same crash footprint. The run loop now polls
-  // stopRequested_ every 100 ms, which is plenty for a 1 s tick cadence.
+  // shared_mutex (SRWLOCK-backed), not std::mutex — see StateStore::mutex_
+  // for the full context on the VS 2022 17.10 std::mutex ABI break.
+  //
+  // std::condition_variable is absent for the same reason: its MSVC
+  // implementation sits on top of std::mutex and inherits the same crash
+  // footprint. The run loop (Scheduler::runLoop) therefore polls
+  // stopRequested_ every 100 ms instead of using wait_for(). Tick cadence
+  // is 1 s, so the poll interval is invisible; shutdown latency rises
+  // from ~0 ms to at most 100 ms, which is inconsequential.
   mutable std::shared_mutex mutex_;
   RuntimeConfig config_;
   std::map<std::string, Clock::time_point> nextSendTimes_;

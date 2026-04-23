@@ -94,8 +94,10 @@ private:
   std::unique_ptr<tracker_pi::Scheduler> scheduler_;
   tracker_pi::RuntimeConfig runtimeConfig_;
   std::filesystem::path configPath_;
-  // std::shared_mutex instead of std::mutex — see state_store.h for the
-  // reason (MSVC/CRT mutex indirection crashes on some target machines).
+  // shared_mutex, not std::mutex — see StateStore::mutex_ in
+  // include/1tracker_pi/state_store.h for the VS 2022 17.10 ABI-break
+  // rationale. All three mutexes in this plugin are shared_mutex for the
+  // same reason.
   mutable std::shared_mutex endpointStatusMutex_;
   std::map<std::string, tracker_pi::EndpointUiState> endpointStatuses_;
   bool initialized_ = false;

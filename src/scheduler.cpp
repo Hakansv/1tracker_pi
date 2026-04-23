@@ -353,9 +353,12 @@ void Scheduler::runLoop() {
   });
 #endif
 
-  // Poll-based loop: tick every second, but check stopRequested_ every
-  // 100 ms so stop() returns promptly. Avoids std::condition_variable
-  // which internally uses std::mutex — see scheduler.h for context.
+  // Poll-based wait: sleep 100 ms, re-check stopRequested_, tick every
+  // full second. Semantically equivalent to condition_variable::wait_for
+  // but without the underlying std::mutex that condition_variable pulls
+  // in — which, on VS 2022 17.10+ compiled against an older msvcp140.dll,
+  // crashes every lock(). See include/1tracker_pi/state_store.h for the
+  // full rationale.
   auto nextTickAt = Clock::now() + std::chrono::seconds(1);
   while (!stopRequested_) {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));

@@ -18,11 +18,25 @@ public:
   Snapshot getSnapshot() const;
 
 private:
-  // std::shared_mutex (SRWLOCK-backed on Windows) instead of std::mutex:
-  // on some MSVC/CRT combinations std::mutex's internal _Mutex_t pointer
-  // can be null after construction and every lock() crashes with an
-  // access-violation at addr=0x0. std::shared_mutex uses InitializeSRWLock
-  // directly and has no such indirection.
+  // std::shared_mutex, not std::mutex — this is intentional.
+  //
+  // Microsoft changed the binary layout of std::mutex in VS 2022 17.10
+  // (microsoft/STL PR #4233, May 2024). Binaries compiled with 17.10+ are
+  // ABI-incompatible with older msvcp140.dll. OpenCPN 5.14 bundles its own
+  // older msvcp140.dll in its install directory, which plugins load via
+  // Windows' DLL search order — so every std::mutex::lock() in a plugin
+  // built with a post-17.10 toolset crashes with AV 0xc0000005 reading 0x0
+  // (_Mutex_t internal pointer is null).
+  //
+  // std::shared_mutex is implemented directly on top of Windows SRWLOCK
+  // (kernel32, not msvcp140) with a stable layout across the whole MSVC
+  // 14.x ABI. Using lock_guard<shared_mutex> takes exclusive locks, which
+  // is semantically identical to lock_guard<mutex> for our usage — we
+  // never use shared (reader) locking.
+  //
+  // Do not "simplify" this back to std::mutex unless OpenCPN has shipped a
+  // current VC++ Redistributable, or Microsoft has removed the pre-17.10
+  // codepath from msvcp140.dll entirely.
   mutable std::shared_mutex mutex_;
   Snapshot snapshot_;
 };
