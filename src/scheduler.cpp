@@ -8,6 +8,7 @@
 #include <sstream>
 
 #ifdef _WIN32
+#include <windows.h>  // for EXCEPTION_POINTERS — must come before <eh.h>
 #include <eh.h>
 #include <cstdio>
 #include <stdexcept>
