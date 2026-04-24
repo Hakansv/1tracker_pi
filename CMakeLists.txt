@@ -124,9 +124,9 @@ if (NOT ${BUILD_TYPE} STREQUAL "flatpak")
     include(MacosWxwidgets)
   endif ()
   include(PluginInstall)
-  if (QT_ANDROID)
-    include(AndroidLibs)
-  endif ()
+  # AndroidLibs is included earlier from Plugin.cmake's late_init() when
+  # QT_ANDROID is set, so its wx include dirs propagate into onetracker_core
+  # before that subdirectory is added.
   include(PluginLocalization)
 endif ()
 
