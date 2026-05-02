@@ -44,7 +44,21 @@ public:
 
 void initWxCurl() {
   static std::once_flag flag;
-  std::call_once(flag, [] { wxCurlBase::Init(); });
+  std::call_once(flag, [] {
+    wxCurlBase::Init();
+    // Log the libcurl + bundled-SSL versions exactly once. curl_version()
+    // returns "libcurl/X OpenSSL/Y zlib/Z ..." which tells us which copy
+    // of OpenSSL we actually resolved against — useful for diagnosing the
+    // "two OpenSSLs in one process" scenario on Android (libgorp's hidden
+    // static copy vs. our bundled libssl/libcrypto).
+    const char* ver = curl_version();
+    const char* safe = ver != nullptr ? ver : "<null>";
+    wxLogMessage("1tracker_pi: send curl_version=%s", safe);
+#ifdef __ANDROID__
+    __android_log_print(ANDROID_LOG_ERROR, "1tracker_pi",
+                        "1tracker_pi: send curl_version=%s", safe);
+#endif
+  });
 }
 
 std::string replaceAll(std::string text, const std::string& needle,
@@ -142,6 +156,20 @@ EndpointSender::Result EndpointSender::send(const EndpointConfig& endpoint,
   logSendStep("after_build_request");
   TrackerHttpClient client(wxString::FromUTF8(endpoint.url.c_str()));
   logSendStep("after_client_ctor");
+  if (!client.IsOk()) {
+    // wxCurlBase sets m_pCURL to whatever curl_easy_init() returned; IsOk()
+    // is just `m_pCURL != NULL`. A NULL handle here means our bundled
+    // libcurl/openssl static archives didn't initialise correctly inside
+    // the dlopen'd plugin .so. Bail with a clear message instead of letting
+    // the next SetOpt deref a NULL handle and crash OpenCPN.
+    logSendStep("client_handle_null");
+    Result result;
+    result.message =
+        "curl handle is NULL after wxCurlHTTP construction "
+        "(curl_easy_init returned NULL — likely OpenSSL/libcurl init "
+        "failure inside the bundled plugin .so)";
+    return result;
+  }
   addRequestHeaders(client, request);
   logSendStep("after_add_headers");
   configureTimeouts(client, endpoint);
