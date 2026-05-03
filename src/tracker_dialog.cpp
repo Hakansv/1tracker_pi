@@ -336,17 +336,20 @@ private:
   }
 
   void configureEndpointGrid() {
+    // Beta14: dropped grid columns 5 (settings icon) and 6 (trash icon).
+    // Edit/Delete are now plain wxButtons under the grid — discoverable
+    // labelled controls that render reliably on Android wxQt, where the
+    // BitmapCellRenderer icons may have been invisible (the tester saw
+    // only Add/Cancel and never found per-row actions).
     actionIcons_ = std::make_unique<ActionIcons>(this);
     endpointGrid_->ShowScrollbars(wxSHOW_SB_NEVER, wxSHOW_SB_NEVER);
-    endpointGrid_->CreateGrid(0, 7);
+    endpointGrid_->CreateGrid(0, 5);
     endpointGrid_->HideRowLabels();
     endpointGrid_->SetColLabelValue(0, "");
     endpointGrid_->SetColLabelValue(1, _("Name"));
     endpointGrid_->SetColLabelValue(2, _("Send interval"));
     endpointGrid_->SetColLabelValue(3, _("Last successful send"));
     endpointGrid_->SetColLabelValue(4, _("Status"));
-    endpointGrid_->SetColLabelValue(5, "");
-    endpointGrid_->SetColLabelValue(6, "");
     applyGridColumnSizing();
     applyGridAppearance();
     configureGridColumns();
@@ -369,8 +372,14 @@ private:
 
     listButtonRow_ = new wxBoxSizer(wxHORIZONTAL);
     addButton_ = new wxButton(listPanel_, wxID_ADD, _("Add tracker"));
+    editButton_ = new wxButton(listPanel_, wxID_ANY, _("Edit"));
+    deleteButton_ = new wxButton(listPanel_, wxID_ANY, _("Delete"));
     closeButton_ = new wxButton(listPanel_, wxID_CANCEL, _("Close"));
+    editButton_->Disable();
+    deleteButton_->Disable();
     listButtonRow_->Add(addButton_, 0);
+    listButtonRow_->Add(editButton_, 0, wxLEFT, 8);
+    listButtonRow_->Add(deleteButton_, 0, wxLEFT, 8);
     listButtonRow_->AddStretchSpacer(1);
     listButtonRow_->Add(closeButton_, 0);
     listSizer->Add(listButtonRow_, 0, wxEXPAND);
@@ -612,8 +621,6 @@ private:
     endpointGrid_->SetColSize(2, 140);
     endpointGrid_->SetColSize(3, 150);
     endpointGrid_->SetColSize(4, 94);
-    endpointGrid_->SetColSize(5, 30);
-    endpointGrid_->SetColSize(6, 30);
   }
 
   void applyGridAppearance() {
@@ -673,18 +680,6 @@ private:
     statusAttr->SetFont(GetFont());
     statusAttr->SetReadOnly(true);
     endpointGrid_->SetColAttr(4, statusAttr);
-
-    auto* settingsAttr = new wxGridCellAttr();
-    settingsAttr->SetAlignment(wxALIGN_CENTRE, wxALIGN_CENTRE);
-    settingsAttr->SetFont(GetFont().Scale(1.3));
-    settingsAttr->SetReadOnly(true);
-    endpointGrid_->SetColAttr(5, settingsAttr);
-
-    auto* trashAttr = new wxGridCellAttr();
-    trashAttr->SetAlignment(wxALIGN_CENTRE, wxALIGN_CENTRE);
-    trashAttr->SetFont(GetFont().Scale(1.3));
-    trashAttr->SetReadOnly(true);
-    endpointGrid_->SetColAttr(6, trashAttr);
   }
 
   void configureDetailTabOrder() {
@@ -781,11 +776,15 @@ private:
 
     bindEscape(endpointGrid_);
     bindEscape(addButton_);
+    bindEscape(editButton_);
+    bindEscape(deleteButton_);
     bindEscape(closeButton_);
   }
 
   void bindDialogButtonEvents() {
     addButton_->Bind(wxEVT_BUTTON, &TrackerDialog::onAddEndpoint, this);
+    editButton_->Bind(wxEVT_BUTTON, &TrackerDialog::onEditButton, this);
+    deleteButton_->Bind(wxEVT_BUTTON, &TrackerDialog::onDeleteButton, this);
     closeButton_->Bind(wxEVT_BUTTON, &TrackerDialog::onCloseDialog, this);
     infoCloseButton_->Bind(wxEVT_BUTTON, &TrackerDialog::onCloseInfo, this);
     detailHelpButton_->Bind(wxEVT_BUTTON, &TrackerDialog::onShowInfo, this);
@@ -925,8 +924,6 @@ private:
     endpointGrid_->SetCellValue(index, 2, endpointRowInterval(endpoint));
     endpointGrid_->SetCellValue(index, 3, lastSent);
     endpointGrid_->SetCellValue(index, 4, "");
-    endpointGrid_->SetCellValue(index, 5, "");
-    endpointGrid_->SetCellValue(index, 6, "");
   }
 
   void setEndpointRowRenderers(int index, tracker_pi::EndpointUiStatus status) {
@@ -936,10 +933,6 @@ private:
         index, 4,
         new BitmapTextCellRenderer(statusBitmap(status), statusLabel(status),
                                    statusTextColour(status)));
-    endpointGrid_->SetCellRenderer(index, 5,
-                                   new BitmapCellRenderer(actionIcons_->settings));
-    endpointGrid_->SetCellRenderer(index, 6,
-                                   new BitmapCellRenderer(actionIcons_->trash));
   }
 
   void refreshEndpointRow(int index) {
@@ -1091,6 +1084,7 @@ private:
     if (index < 0 || static_cast<std::size_t>(index) >= config_.endpoints.size()) {
       enableEndpointEditor(false);
       currentEndpointIndex_ = wxNOT_FOUND;
+      updateEditDeleteEnabled();
       return;
     }
 
@@ -1100,6 +1094,7 @@ private:
     const auto& endpoint = config_.endpoints[static_cast<std::size_t>(index)];
     populateEditorFromEndpoint(endpoint);
     updateEndpointErrorUi(&endpoint);
+    updateEditDeleteEnabled();
   }
 
   void saveCurrentEndpoint() {
@@ -1290,6 +1285,39 @@ private:
     endpointNameCtrl_->SetFocus();
   }
 
+  void updateEditDeleteEnabled() {
+    if (editButton_ == nullptr || deleteButton_ == nullptr) {
+      return;
+    }
+    const bool hasSelection = hasGridRow(currentEndpointIndex_);
+    editButton_->Enable(hasSelection);
+    deleteButton_->Enable(hasSelection);
+  }
+
+  void onEditButton(wxCommandEvent&) {
+    if (!hasGridRow(currentEndpointIndex_)) {
+      return;
+    }
+    openEndpointEditor(currentEndpointIndex_);
+  }
+
+  void onDeleteButton(wxCommandEvent&) {
+    if (!hasGridRow(currentEndpointIndex_)) {
+      return;
+    }
+    const auto& endpoint =
+        config_.endpoints[static_cast<std::size_t>(currentEndpointIndex_)];
+    const wxString prompt =
+        wxString::Format(_("Delete tracker '%s'?"),
+                         wxString::FromUTF8(endpoint.name.c_str()));
+    wxMessageDialog confirm(this, prompt, _("Confirm delete"),
+                            wxYES_NO | wxNO_DEFAULT | wxICON_QUESTION);
+    if (confirm.ShowModal() != wxID_YES) {
+      return;
+    }
+    removeEndpoint(currentEndpointIndex_);
+  }
+
   void onEndpointGridClick(wxGridEvent& event) {
     const int row = event.GetRow();
     const int col = event.GetCol();
@@ -1300,16 +1328,6 @@ private:
 
     if (col == 0) {
       toggleEndpointEnabled(row);
-      return;
-    }
-
-    if (col == 5) {
-      openEndpointEditor(row);
-      return;
-    }
-
-    if (col == 6) {
-      removeEndpoint(row);
       return;
     }
 
@@ -1418,6 +1436,8 @@ private:
   wxBoxSizer* infoButtonRow_ = nullptr;
   wxBoxSizer* listButtonRow_ = nullptr;
   wxButton* addButton_ = nullptr;
+  wxButton* editButton_ = nullptr;
+  wxButton* deleteButton_ = nullptr;
   wxButton* closeButton_ = nullptr;
   wxButton* infoCloseButton_ = nullptr;
   wxButton* detailHelpButton_ = nullptr;

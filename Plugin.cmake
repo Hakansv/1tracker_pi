@@ -19,7 +19,7 @@ set(OCPN_RELEASE_REPO
 
 # -------- Plugin identity --------
 set(PKG_NAME 1tracker_pi)
-set(PKG_VERSION 0.9.1)
+set(PKG_VERSION 0.9.2)
 set(PKG_PRERELEASE "")
 
 set(DISPLAY_NAME 1tracker)

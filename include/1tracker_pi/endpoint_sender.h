@@ -30,6 +30,16 @@ public:
   // lazy init from a thread that didn't exist when the plugin .so was
   // dlopen'd — a known crash mode on Android.
   static void Prewarm();
+
+  // Tell EndpointSender where the bundled Mozilla CA cert file lives, so
+  // libcurl can verify HTTPS chains. Resolved at plugin Init() time on
+  // the main thread (plugin_ui_utils.cpp lives in the plugin .so layer
+  // and can hit OpenCPN's GetPluginDataDir API; this static lib cannot).
+  // Empty string means "not found, fall back to libcurl default" — on
+  // Android that means no verification root, every HTTPS endpoint will
+  // fail cert validation. configureSSL() inside send() reads this once
+  // per process via call_once.
+  static void SetCaBundlePath(const std::string& path);
 };
 
 }  // namespace tracker_pi

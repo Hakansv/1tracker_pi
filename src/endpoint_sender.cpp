@@ -94,6 +94,49 @@ void configureTimeouts(TrackerHttpClient& client, const EndpointConfig& endpoint
   client.SetOpt(CURLOPT_CONNECTTIMEOUT, static_cast<long>(endpoint.timeoutSeconds));
 }
 
+// Storage for the CA bundle path — set once from plugin.cpp Init via
+// EndpointSender::SetCaBundlePath, read by configureSSL on every send.
+// Empty means "no path resolved, libcurl default applies" (on Android that
+// equals no verification root, all HTTPS will fail). Read-only after Init,
+// so no synchronisation needed beyond the call_once log emission below.
+std::string& caBundlePathStorage() {
+  static std::string path;
+  return path;
+}
+
+void configureSSL(TrackerHttpClient& client) {
+  // Always require peer + host verification. CURL_SSLVERSION_TLSv1_2 floor
+  // covers every modern endpoint (every CA in our Mozilla bundle issues
+  // certs valid for TLS 1.2+).
+  client.SetOpt(CURLOPT_SSL_VERIFYPEER, 1L);
+  client.SetOpt(CURLOPT_SSL_VERIFYHOST, 2L);
+
+  const std::string& caPath = caBundlePathStorage();
+  static std::once_flag onceFlag;
+  std::call_once(onceFlag, [&caPath] {
+    if (caPath.empty()) {
+      wxLogMessage(
+          "1tracker_pi: send ca_bundle=NOT_FOUND — HTTPS verification "
+          "will fail until data/cacert.pem is shipped + reachable via "
+          "GetPluginDataDir; check plugin install");
+#ifdef __ANDROID__
+      __android_log_print(ANDROID_LOG_ERROR, "1tracker_pi",
+                          "1tracker_pi: send ca_bundle=NOT_FOUND");
+#endif
+    } else {
+      wxLogMessage("1tracker_pi: send ca_bundle=%s", caPath.c_str());
+#ifdef __ANDROID__
+      __android_log_print(ANDROID_LOG_ERROR, "1tracker_pi",
+                          "1tracker_pi: send ca_bundle=%s", caPath.c_str());
+#endif
+    }
+  });
+
+  if (!caPath.empty()) {
+    client.SetOpt(CURLOPT_CAINFO, caPath.c_str());
+  }
+}
+
 EndpointSender::Result makeSuccessResult(long httpStatus,
                                          const std::string& responseBody,
                                          const EndpointConfig& endpoint) {
@@ -174,6 +217,8 @@ EndpointSender::Result EndpointSender::send(const EndpointConfig& endpoint,
   logSendStep("after_add_headers");
   configureTimeouts(client, endpoint);
   logSendStep("after_configure_timeouts");
+  configureSSL(client);
+  logSendStep("after_configure_ssl");
 
   const bool posted = client.Post(request.body.data(), request.body.size());
   logSendStep(posted ? "post_returned_true" : "post_returned_false");
@@ -196,6 +241,10 @@ EndpointSender::Result EndpointSender::send(const EndpointConfig& endpoint,
   result.message =
       buildFailureMessage(client, posted, httpStatus, responseBody, endpoint);
   return result;
+}
+
+void EndpointSender::SetCaBundlePath(const std::string& path) {
+  caBundlePathStorage() = path;
 }
 
 void EndpointSender::Prewarm() {

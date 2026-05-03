@@ -329,6 +329,20 @@ int OneTrackerPi::Init() {
 
   tracker_pi::runGuarded("Init:createScheduler",
                          [this] { createScheduler(); }, logger);
+  // Resolve the bundled Mozilla CA bundle path on the main thread (the
+  // only place GetPluginDataDir is safe to call) and inject it into
+  // EndpointSender. Without this, libcurl on Android has no verification
+  // root and every HTTPS request fails cert validation. Empty resolve
+  // result is logged inside configureSSL on the first send so the tester
+  // can tell from opencpn.log whether the install dropped data/cacert.pem.
+  tracker_pi::runGuarded("Init:resolveCaBundle", [&logger] {
+    const wxString path =
+        tracker_plugin_ui::FindPluginAssetPath(wxT("cacert.pem"));
+    tracker_pi::EndpointSender::SetCaBundlePath(path.ToStdString());
+    logger(std::string("1tracker_pi: Init resolved cacert.pem path=") +
+           (path.IsEmpty() ? std::string("<not found>")
+                           : path.ToStdString()));
+  }, logger);
   // Prewarm libcurl + OpenSSL on the OpenCPN main thread. The scheduler
   // worker thread spins up inside configureAndStartScheduler, and on
   // Android the first curl_easy_init / OpenSSL lazy init from a thread
