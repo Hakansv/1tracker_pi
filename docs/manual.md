@@ -106,7 +106,29 @@ Use type `http_json_with_header_key` for any HTTP endpoint that accepts a JSON P
 | Timeout | HTTP request timeout in seconds |
 | Include wind | Optional |
 
-The payload sent is a JSON object containing `latitude`, `longitude`, `timestamp`, and optionally `awa` (apparent wind angle) and `aws` (apparent wind speed).
+The payload sent is a JSON object with this shape:
+
+```json
+{
+  "action": "addPositions",
+  "data": [
+    {
+      "timevalue": 1746281288,
+      "lat": 51.8237,
+      "lon": 4.1192,
+      "awa": 35.5,
+      "aws": 12.3
+    }
+  ]
+}
+```
+
+Field details:
+
+- `timevalue` — Unix epoch in **seconds** (integer)
+- `lat`, `lon` — decimal degrees, WGS-84 (number)
+- `awa`, `aws` — only present when **Include wind** is enabled and NMEA wind data is available; `awa` is apparent wind angle in degrees, `aws` is apparent wind speed in knots
+- `data` is an array; each scheduled send currently posts a single position, but your endpoint should be ready to handle multiple entries
 
 ### Need a Different Tracker Type?
 
