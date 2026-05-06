@@ -322,23 +322,37 @@ std-filters: &std-filters
     tags:
       only: /.*/
 
+# Flatpak builds run only on version tags. On master-branch pushes they
+# would just produce a noisy red CI status — flatpak's runtime fetch
+# (glu, mesa, etc.) and parallel-make orchestration in the OpenCPN
+# plugin template have repeatedly flaked under transient mirror /
+# scheduling issues, and those builds publish nothing on branch pushes
+# anyway. Tags trigger the full matrix, so releases still get flatpak
+# coverage.
+tag-only-filters: &tag-only-filters
+  filters:
+    branches:
+      ignore: /.*/
+    tags:
+      only: /.*/
+
 workflows:
   build_all:
     when:
       not: << pipeline.parameters.catalog_only >>
     jobs:
       - build-flatpak-arm64:
-          <<: *std-filters
+          <<: *tag-only-filters
       - build-flatpak-x86:
-          <<: *std-filters
+          <<: *tag-only-filters
       - build-flatpak-arm64-2408:
-          <<: *std-filters
+          <<: *tag-only-filters
       - build-flatpak-x86-2408:
-          <<: *std-filters
+          <<: *tag-only-filters
       - build-flatpak-arm64-2508:
-          <<: *std-filters
+          <<: *tag-only-filters
       - build-flatpak-x86-2508:
-          <<: *std-filters
+          <<: *tag-only-filters
       - build-macos-universal:
           <<: *std-filters
       - build-macos-intel-legacy:
